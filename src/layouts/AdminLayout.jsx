@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { 
-  LayoutDashboard, Users, CreditCard, BarChart3, Share2, History, Settings, Menu, X as LucideX, MonitorPlay
+  LayoutDashboard, Users, CreditCard, BarChart3, Share2, History, Settings, Menu, X as LucideX
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -27,6 +27,7 @@ const SidebarNavLink = ({ to, icon: Icon, children, onClick }) => (
 );
 
 const SidebarContent = ({ isOpen, toggleSidebar }) => {
+  const logoUrl = "https://storage.googleapis.com/hostinger-horizons-assets-prod/9ebf8f0b-cde8-498c-9fdd-b05fe177914b/a1d5c6f61f6fb2061a4a88537284d3ff.png";
   const navItems = [
     { to: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { to: '/admin/users', icon: Users, label: 'Gestión de usuarios' },
@@ -39,12 +40,10 @@ const SidebarContent = ({ isOpen, toggleSidebar }) => {
 
   return (
     <div className="flex flex-col h-full bg-brand-black p-4 space-y-2">
-      <div className="flex items-center justify-between mb-6 lg:mb-8">
-        <div className="flex items-center text-brand-green">
-          <MonitorPlay className="h-8 w-8 mr-2" />
-          <h1 className="text-2xl font-bold text-white">BLACKBOX</h1>
-        </div>
-        {/* Close button for mobile sheet, only shown if toggleSidebar is provided */}
+      <div className="flex items-center justify-between mb-6 lg:mb-8 pt-2">
+        <Link to="/admin/dashboard" className="flex items-center">
+          <img src={logoUrl} alt="BLACKBOX MONITOR Logo" className="h-12 object-contain" />
+        </Link>
         {toggleSidebar && (
           <Button variant="ghost" size="icon" className="lg:hidden text-gray-300 hover:text-white" onClick={toggleSidebar}>
             <LucideX className="h-6 w-6" />
@@ -79,12 +78,10 @@ const AdminLayout = () => {
 
   return (
     <div className="flex h-screen bg-background">
-      {/* Static Sidebar for large screens */}
       <div className="hidden lg:block w-64 shadow-xl z-20">
         <SidebarContent isOpen={true} />
       </div>
 
-      {/* Sheet-based Sidebar for small screens */}
       <div className="lg:hidden">
         <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
           <SheetTrigger asChild>
@@ -98,7 +95,6 @@ const AdminLayout = () => {
       
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="bg-card border-b border-border p-4 flex items-center justify-between lg:justify-end sticky top-0 z-30">
-          {/* Hamburger menu button for mobile, triggers the Sheet */}
           <Button variant="ghost" size="icon" className="lg:hidden text-foreground" onClick={toggleSidebar}>
             <Menu className="h-6 w-6" />
           </Button>

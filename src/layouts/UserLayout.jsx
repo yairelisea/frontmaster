@@ -1,21 +1,15 @@
 import React, { useState } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { 
-  LayoutDashboard, BarChart3, MessageSquare, PieChart, Link as LinkIcon, CreditCard, Users, FileText, PlusCircle, Settings, Menu, X as LucideX, MonitorPlay, LogOut
+  LayoutDashboard, BarChart3, MessageSquare, PieChart, Link as LinkIcon, CreditCard, Users, FileText, PlusCircle, Settings, Menu, X as LucideX, LogOut
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from '@/components/ui/dropdown-menu';
+
 
 const UserSidebarNavLink = ({ to, icon: Icon, children, onClick }) => (
   <NavLink
@@ -30,15 +24,20 @@ const UserSidebarNavLink = ({ to, icon: Icon, children, onClick }) => (
       )
     }
   >
-    <Icon className={cn(
-      'mr-3 h-5 w-5 transition-colors duration-150 ease-in-out',
-      'text-gray-500 group-hover:text-brand-green'
-      )} />
-    {children}
+    {({ isActive }) => (
+      <>
+        <Icon className={cn(
+          'mr-3 h-5 w-5 transition-colors duration-150 ease-in-out',
+          isActive ? 'text-primary-foreground' : 'text-gray-500 group-hover:text-brand-green'
+        )} />
+        {children}
+      </>
+    )}
   </NavLink>
 );
 
 const UserSidebarContent = ({ isOpen, toggleSidebar }) => {
+  const logoUrl = "https://storage.googleapis.com/hostinger-horizons-assets-prod/9ebf8f0b-cde8-498c-9fdd-b05fe177914b/a1d5c6f61f6fb2061a4a88537284d3ff.png";
   const navItems = [
     { to: '/user/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { to: '/user/campaigns', icon: BarChart3, label: 'Mis Campañas' },
@@ -51,11 +50,10 @@ const UserSidebarContent = ({ isOpen, toggleSidebar }) => {
 
   return (
     <div className="flex flex-col h-full bg-card text-card-foreground p-4 space-y-2 border-r border-border shadow-sm">
-      <div className="flex items-center justify-between mb-6 lg:mb-8">
-        <div className="flex items-center text-brand-green">
-          <MonitorPlay className="h-8 w-8 mr-2 text-brand-green" />
-          <h1 className="text-2xl font-bold text-gray-800">BLACKBOX</h1>
-        </div>
+      <div className="flex items-center justify-between mb-6 lg:mb-8 pt-2">
+        <Link to="/user/dashboard" className="flex items-center">
+          <img src={logoUrl} alt="BLACKBOX MONITOR Logo" className="h-12 object-contain" />
+        </Link>
         {toggleSidebar && (
           <Button variant="ghost" size="icon" className="lg:hidden text-gray-600 hover:text-gray-900" onClick={toggleSidebar}>
             <LucideX className="h-6 w-6" />
@@ -78,7 +76,7 @@ const UserSidebarContent = ({ isOpen, toggleSidebar }) => {
         <UserSidebarNavLink to="/user/settings" icon={Settings} onClick={toggleSidebar ? toggleSidebar : undefined}>
           Configuración
         </UserSidebarNavLink>
-         <UserSidebarNavLink to="/auth/logout" icon={LogOut} onClick={toggleSidebar ? toggleSidebar : undefined}>
+         <UserSidebarNavLink to="/auth/login" icon={LogOut} onClick={toggleSidebar ? toggleSidebar : undefined}>
           Cerrar Sesión
         </UserSidebarNavLink>
         <p className="text-xs text-muted-foreground text-center pt-4">&copy; {new Date().getFullYear()} BLACKBOX MONITOR</p>
@@ -95,12 +93,10 @@ const UserLayout = () => {
 
   return (
     <div className="flex h-screen bg-background">
-      {/* Static Sidebar for large screens */}
       <div className="hidden lg:block w-64">
         <UserSidebarContent isOpen={true} />
       </div>
 
-      {/* Sheet-based Sidebar for small screens */}
       <div className="lg:hidden">
         <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
           <SheetTrigger asChild>
@@ -118,20 +114,20 @@ const UserLayout = () => {
             <Button variant="ghost" size="icon" className="lg:hidden text-foreground" onClick={toggleSidebar}>
               <Menu className="h-6 w-6" />
             </Button>
-            <div className="flex items-center gap-x-4 ml-auto">
+            <div className="flex items-center gap-x-3 sm:gap-x-4 ml-auto">
               <Button variant="outline" size="sm" className="border-brand-green text-brand-green hover:bg-brand-green hover:text-white">
-                <FileText className="mr-2 h-4 w-4" /> Generar PDF
+                <FileText className="mr-1.5 h-4 w-4" /> Generar PDF
               </Button>
               <NavLink to="/user/campaigns/new">
                 <Button size="sm" className="bg-brand-green hover:bg-brand-green/90 text-primary-foreground">
-                  <PlusCircle className="mr-2 h-4 w-4" /> Agregar Campaña
+                  <PlusCircle className="mr-1.5 h-4 w-4" /> Agregar Campaña
                 </Button>
               </NavLink>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-9 w-9 rounded-full">
                     <Avatar className="h-9 w-9">
-                      <img src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde" alt="Usuario" />
+                      <img  alt="Avatar de usuario" style={{objectFit: 'cover', width: '100%', height: '100%'}} src="https://images.unsplash.com/photo-1527137200076-e85f711fb0fa" />
                       <AvatarFallback>U</AvatarFallback>
                     </Avatar>
                   </Button>
@@ -146,13 +142,17 @@ const UserLayout = () => {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem>
-                    <Settings className="mr-2 h-4 w-4" />
-                    <span>Configuración</span>
+                  <DropdownMenuItem asChild>
+                    <Link to="/user/settings">
+                      <Settings className="mr-2 h-4 w-4" />
+                      <span>Configuración</span>
+                    </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    <LogOut className="mr-2 h-4 w-4" />
-                    <span>Cerrar sesión</span>
+                  <DropdownMenuItem asChild>
+                    <Link to="/auth/login">
+                      <LogOut className="mr-2 h-4 w-4" />
+                      <span>Cerrar sesión</span>
+                    </Link>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -164,10 +164,10 @@ const UserLayout = () => {
             <AnimatePresence mode="wait">
               <motion.div
                 key={location.pathname}
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 15 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.25 }}
+                exit={{ opacity: 0, y: -15 }}
+                transition={{ duration: 0.2 }}
               >
                 <Outlet />
               </motion.div>
