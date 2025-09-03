@@ -1,83 +1,79 @@
-import React, { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { DialogFooter } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { useToast } from '@/components/ui/use-toast';
+import { useState, useEffect } from "react";
+import { createCampaign, updateCampaign } from "@/services/campaigns";
 
-export const CampaignForm = ({ onSubmit, existingCampaign, onCancel }) => {
-  const [name, setName] = useState('');
-  const [target, setTarget] = useState('');
-  const [keywords, setKeywords] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const { toast } = useToast();
+export default function CampaignForm({ initial, onSaved, onCancel }) {
+  const [name, setName] = useState(initial?.name || "");
+  const [query, setQuery] = useState(initial?.query || "");
+  const [size, setSize] = useState(initial?.size ?? 35);
+  const [days, setDays] = useState(initial?.days_back ?? 14);
+  const [lang, setLang] = useState(initial?.lang || "es-419");
+  const [country, setCountry] = useState(initial?.country || "MX");
+  const [city, setCity] = useState((initial?.city_keywords || []).join(","));
+  const [err, setErr] = useState(null);
+  const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (existingCampaign) {
-      setName(existingCampaign.name || '');
-      setTarget(existingCampaign.target || '');
-      setKeywords(existingCampaign.keywords || '');
-      setStartDate(existingCampaign.startDate || '');
-      setEndDate(existingCampaign.endDate || '');
-    } else {
-      setName('');
-      setTarget('');
-      setKeywords('');
-      setStartDate('');
-      setEndDate('');
+  const save = async () => {
+    setSaving(true); setErr(null);
+    try {
+      const payload = {
+        name, query,
+        size: Number(size),
+        days_back: Number(days),
+        lang, country,
+        city_keywords: city.split(",").map(s => s.trim()).filter(Boolean)
+      };
+      const out = initial?.id
+        ? await updateCampaign(initial.id, payload)
+        : await createCampaign(payload);
+      onSaved?.(out);
+    } catch (e) {
+      setErr(e?.response?.data?.detail || e?.message || "Error");
+    } finally {
+      setSaving(false);
     }
-  }, [existingCampaign]);
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!name || !target || !keywords || !startDate || !endDate) {
-      toast({ title: "Error", description: "Todos los campos son requeridos.", variant: "destructive" });
-      return;
-    }
-    onSubmit({ 
-      id: existingCampaign?.id, 
-      name, 
-      target, 
-      keywords, 
-      startDate, 
-      endDate, 
-      status: existingCampaign?.status || 'Activa', 
-      mentions: existingCampaign?.mentions || 0, 
-      sentiment: existingCampaign?.sentiment || 'Neutral (50%)' 
-    });
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <Label htmlFor="campaignName-form">Nombre de la Campaña</Label>
-        <Input id="campaignName-form" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej. Monitoreo Elecciones 2025" className="mt-1"/>
+    <div className="border rounded p-3 space-y-2">
+      <h3 className="font-semibold">{initial?.id ? "Editar campaña" : "Nueva campaña"}</h3>
+      {err && <div className="text-red-600">{err}</div>}
+      <div className="grid md:grid-cols-2 gap-2">
+        <label className="space-y-1">
+          <div className="text-sm">Nombre</div>
+          <input className="border rounded px-3 py-2 w-full" value={name} onChange={e=>setName(e.target.value)} />
+        </label>
+        <label className="space-y-1">
+          <div className="text-sm">Actor/Tema</div>
+          <input className="border rounded px-3 py-2 w-full" value={query} onChange={e=>setQuery(e.target.value)} />
+        </label>
+        <label className="space-y-1">
+          <div className="text-sm">Resultados buscados</div>
+          <input type="number" className="border rounded px-3 py-2 w-full" value={size} onChange={e=>setSize(e.target.value)} />
+          <div className="text-xs text-gray-500">El backend lo capea según el plan</div>
+        </label>
+        <label className="space-y-1">
+          <div className="text-sm">Días hacia atrás</div>
+          <input type="number" className="border rounded px-3 py-2 w-full" value={days} onChange={e=>setDays(e.target.value)} />
+        </label>
+        <label className="space-y-1">
+          <div className="text-sm">Idioma</div>
+          <input className="border rounded px-3 py-2 w-full" value={lang} onChange={e=>setLang(e.target.value)} />
+        </label>
+        <label className="space-y-1">
+          <div className="text-sm">País</div>
+          <input className="border rounded px-3 py-2 w-full" value={country} onChange={e=>setCountry(e.target.value)} />
+        </label>
+        <label className="space-y-1 md:col-span-2">
+          <div className="text-sm">Palabras clave de ciudad/localidad (coma separadas)</div>
+          <input className="border rounded px-3 py-2 w-full" value={city} onChange={e=>setCity(e.target.value)} placeholder="Querétaro,Qro,Corregidora" />
+        </label>
       </div>
-      <div>
-        <Label htmlFor="campaignTarget-form">Personaje / Entidad a Monitorear</Label>
-        <Input id="campaignTarget-form" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="Ej. Candidato X, Empresa Y" className="mt-1"/>
+      <div className="flex gap-2">
+        <button onClick={save} disabled={saving} className="px-3 py-2 bg-black text-white rounded">
+          {saving ? "Guardando..." : "Guardar"}
+        </button>
+        <button onClick={onCancel} className="px-3 py-2 border rounded">Cancelar</button>
       </div>
-      <div>
-        <Label htmlFor="campaignKeywords-form">Palabras Clave (separadas por coma)</Label>
-        <Input id="campaignKeywords-form" value={keywords} onChange={(e) => setKeywords(e.target.value)} placeholder="Ej. innovación, tecnología, futuro" className="mt-1"/>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <Label htmlFor="startDate-form">Fecha de Inicio</Label>
-          <Input id="startDate-form" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="mt-1"/>
-        </div>
-        <div>
-          <Label htmlFor="endDate-form">Fecha de Fin</Label>
-          <Input id="endDate-form" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="mt-1"/>
-        </div>
-      </div>
-      <DialogFooter>
-        <Button type="button" variant="outline" onClick={onCancel}>Cancelar</Button>
-        <Button type="submit" className="bg-brand-green hover:bg-brand-green/90 text-primary-foreground">
-          {existingCampaign ? 'Guardar Cambios' : 'Crear Campaña'}
-        </Button>
-      </DialogFooter>
-    </form>
+    </div>
   );
-};
+}
