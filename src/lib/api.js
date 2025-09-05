@@ -39,6 +39,50 @@ export async function fetchCampaigns() {
   return res.json();
 }
 
+/**
+ * Normaliza distintas formas que puede devolver /ai/analyze-news
+ * - { overall: {...}, items: [...] }
+ * - { summary, sentiment_label, ... } plano
+ * - { results: [...] } solo artículos
+ */
+export function normalizeAnalysis(raw) {
+  if (!raw || typeof raw !== "object") return { meta: raw };
+
+  // Caso A: tiene 'overall'
+  if (raw.overall && typeof raw.overall === "object") {
+    return {
+      summary: raw.overall.summary ?? raw.summary,
+      sentiment_label: raw.overall.sentiment_label ?? raw.sentiment_label,
+      sentiment_score: raw.overall.sentiment_score ?? raw.sentiment_score,
+      topics: raw.overall.topics ?? raw.topics ?? [],
+      perception: raw.overall.perception ?? raw.perception ?? {},
+      items: raw.items ?? raw.results ?? raw.articles ?? [],
+      raw,
+    };
+  }
+
+  // Caso B: plano con campos directos
+  if ("summary" in raw || "sentiment_label" in raw || "sentiment_score" in raw) {
+    return {
+      summary: raw.summary ?? null,
+      sentiment_label: raw.sentiment_label ?? null,
+      sentiment_score: raw.sentiment_score ?? null,
+      topics: raw.topics ?? [],
+      perception: raw.perception ?? {},
+      items: raw.items ?? raw.results ?? raw.articles ?? [],
+      raw,
+    };
+  }
+
+  // Caso C: solo lista de artículos
+  if (Array.isArray(raw.results) || Array.isArray(raw.items) || Array.isArray(raw.articles)) {
+    const items = raw.results ?? raw.items ?? raw.articles ?? [];
+    return { summary: null, sentiment_label: null, sentiment_score: null, topics: [], perception: {}, items, raw };
+  }
+
+  return { summary: null, sentiment_label: null, sentiment_score: null, topics: [], perception: {}, items: [], raw };
+}
+
 export async function analyzeNews({ q, size = 25, days_back = 14, overall = true, lang = "es-419", country = "MX" }) {
   const params = new URLSearchParams({
     q,
@@ -51,11 +95,18 @@ export async function analyzeNews({ q, size = 25, days_back = 14, overall = true
   const res = await fetch(`${API}/ai/analyze-news?${params.toString()}`, {
     headers: jsonHeaders(),
   });
+  const text = await res.text();
   if (!res.ok) {
-    const err = await res.text().catch(() => "");
-    throw new Error(`AI analyze failed: ${res.status} ${err}`);
+    throw new Error(`AI analyze failed: ${res.status} ${text}`);
   }
-  return res.json(); // ← devuelve { summary, sentiment_label, sentiment_score, topics, perception, ... }
+  let json;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    // por si el backend respondió string (stream/trace), lo devolvemos como meta
+    json = { _raw: text };
+  }
+  return normalizeAnalysis(json);
 }
 
 export async function analyzeCampaign(campaign) {
@@ -68,6 +119,7 @@ export async function analyzeCampaign(campaign) {
     overall: true,
   });
 }
+
 
 
 export const api = {
