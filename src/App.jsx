@@ -1,4 +1,5 @@
-import React from 'react';
+// src/App.jsx
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 
 // Layouts
@@ -18,7 +19,7 @@ import GeneralSettingsPage from '@/pages/admin/GeneralSettingsPage';
 // User Pages
 import UserDashboardPage from '@/pages/user/UserDashboardPage';
 import UserCampaignsPage from '@/pages/user/UserCampaignsPage';
-import CampaignFormPage from '@/pages/user/CampaignFormPage'; // New Campaign Form Page
+import CampaignFormPage from '@/pages/user/CampaignFormPage';
 import UserPostsMentionsPage from '@/pages/user/UserPostsMentionsPage';
 import UserAnalyticsPage from '@/pages/user/UserAnalyticsPage';
 import UserConnectAccountsPage from '@/pages/user/UserConnectAccountsPage';
@@ -32,9 +33,14 @@ import RegisterPage from '@/pages/auth/RegisterPage';
 import { Toaster } from '@/components/ui/toaster';
 
 function App() {
-  // For now, we'll assume the user is "logged in" and redirect to user dashboard.
-  // In a real app, this would be based on auth state.
-  const isAuthenticated = true; 
+  // Estado de autenticación
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  // Efecto: al cargar la app, revisa si hay token guardado
+  useEffect(() => {
+    const token = localStorage.getItem("auth_token");
+    setIsAuthenticated(!!token);
+  }, []);
 
   return (
     <Router>
@@ -42,14 +48,18 @@ function App() {
       <Routes>
         {/* Auth Routes */}
         <Route path="/auth" element={<AuthLayout />}>
-          <Route path="login" element={<LoginPage />} />
+          <Route path="login" element={<LoginPage setIsAuthenticated={setIsAuthenticated} />} />
           <Route path="register" element={<RegisterPage />} />
-           {/* Redirect to login if no specific auth path is matched */}
           <Route index element={<Navigate to="login" replace />} />
         </Route>
 
         {/* Admin Routes */}
-        <Route path="/admin" element={<AdminLayout />}>
+        <Route 
+          path="/admin/*" 
+          element={
+            isAuthenticated ? <AdminLayout /> : <Navigate to="/auth/login" replace />
+          }
+        >
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<AdminDashboardPage />} />
           <Route path="users" element={<UserManagementPage />} />
@@ -61,7 +71,12 @@ function App() {
         </Route>
 
         {/* User Routes */}
-        <Route path="/user" element={<UserLayout />}>
+        <Route 
+          path="/user/*" 
+          element={
+            isAuthenticated ? <UserLayout /> : <Navigate to="/auth/login" replace />
+          }
+        >
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<UserDashboardPage />} />
           <Route path="campaigns" element={<UserCampaignsPage />} />
@@ -73,8 +88,8 @@ function App() {
           <Route path="plans" element={<UserPlansPage />} />
           <Route path="compare" element={<UserProfileComparisonPage />} />
         </Route>
-        
-        {/* Default Redirect Logic */}
+
+        {/* Default Redirect */}
         <Route 
           path="*" 
           element={
