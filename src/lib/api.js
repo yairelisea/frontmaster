@@ -17,7 +17,7 @@ function withHeaders(init = {}) {
 function jsonHeaders(extra = {}) {
   return {
     "Content-Type": "application/json",
-    "x-user-id": FAKE_USER,
+    "x-user-id": 'dev-user-1',
     ...extra,
   };
 }
