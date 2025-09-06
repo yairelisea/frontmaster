@@ -7,11 +7,12 @@ import { PlusCircle, Search } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useToast } from '@/components/ui/use-toast';
 import { CampaignTable } from '@/components/user/campaigns/CampaignTable';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { fetchCampaigns, analyzeCampaign } from '@/lib/api';
 
 const UserCampaignsPage = () => {
   const { toast } = useToast();
+  const location = useLocation();
 
   // Estado de campañas
   const [loading, setLoading] = useState(true);
@@ -20,9 +21,15 @@ const UserCampaignsPage = () => {
 
   // Estado para análisis IA
   const [analyzingId, setAnalyzingId] = useState(null);
-  const [analysisError, setAnalysisError] = useState(null);
-  const [analysisData, setAnalysisData] = useState(null); // normalizado: { summary, sentiment_label, sentiment_score, topics, items, raw }
-  const [analysisCampaign, setAnalysisCampaign] = useState(null);
+  const [analysisError, setAnalysisError] = useState(location.state?.analysisError || null);
+  const [analysisData, setAnalysisData] = useState(location.state?.analysisData || null); // normalizado: { summary, sentiment_label, sentiment_score, topics, items, raw }
+  const [analysisCampaign, setAnalysisCampaign] = useState(location.state?.showAnalysisFor || null);
+
+  useEffect(() => {
+    if (location.state) {
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
 
   // Cargar campañas reales desde el backend
   async function loadCampaigns() {

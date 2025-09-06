@@ -1,4 +1,4 @@
-// src/pages/user/CampaignFormPage.jsx
+/// src/pages/user/CampaignFormPage.jsx
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import {
@@ -12,20 +12,21 @@ import { ArrowLeft, Save } from "lucide-react";
 import { motion } from "framer-motion";
 import { createCampaign, analyzeCampaign } from "@/lib/api";
 
+// Calcula days_back a partir de fechas (1..60)
 function daysDiffClamp(start, end) {
   try {
     const s = new Date(start);
     const e = new Date(end);
     if (isNaN(s.getTime()) || isNaN(e.getTime())) return 14;
     const ms = Math.max(1, Math.round((e - s) / (1000 * 60 * 60 * 24)));
-    return Math.min(Math.max(ms, 1), 60); // 1..60
+    return Math.min(Math.max(ms, 1), 60);
   } catch {
     return 14;
   }
 }
 
 const CampaignFormPage = () => {
-  const { campaignId } = useParams(); // (por ahora no editamos; sólo creación)
+  const { campaignId } = useParams(); // reservado para futura edición
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -36,10 +37,9 @@ const CampaignFormPage = () => {
   const [endDate, setEndDate] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  // Si vinieran params para editar, podrías precargar aquí
   useEffect(() => {
     if (campaignId) {
-      // future: GET /campaigns/:id y setear campos
+      // futuro: precargar campaña para edición
     }
   }, [campaignId]);
 
@@ -58,16 +58,19 @@ const CampaignFormPage = () => {
 
     setIsLoading(true);
 
-    // Mapear a payload del backend
+    // city_keywords desde el campo "keywords" (coma-separados)
     const city_keywords = keywords
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean);
-    const days_back = startDate && endDate ? daysDiffClamp(startDate, endDate) : 14;
 
+    const days_back =
+      startDate && endDate ? daysDiffClamp(startDate, endDate) : 14;
+
+    // Payload que espera tu backend
     const payload = {
-      name,
-      query: target,      // lo que se buscará en noticias
+      name,                  // <- el nombre se envía tal cual lo escribes
+      query: target,         // lo que buscará la IA/noticias
       size: 25,
       days_back,
       lang: "es-419",
@@ -76,7 +79,7 @@ const CampaignFormPage = () => {
     };
 
     try {
-      // 1) Crear campaña
+      // 1) Crear campaña real en el backend
       const created = await createCampaign(payload);
 
       toast({
@@ -85,21 +88,22 @@ const CampaignFormPage = () => {
         className: "bg-brand-green text-white",
       });
 
-      // 2) Lanzar análisis IA inmediatamente
+      // 2) Lanzar análisis IA de inmediato
       let analysis = null;
       try {
         analysis = await analyzeCampaign(created);
       } catch (err) {
-        // Si falla el análisis, igual redirigimos con el error para mostrarlo
-        analysis = { _error: err?.message || "No se pudo completar el análisis." };
+        analysis = {
+          _error: err?.message || "No se pudo completar el análisis.",
+        };
       }
 
-      // 3) Redirigir a /user/campaigns mostrando resultados
+      // 3) Redirigir a /user/campaigns y llevar resultados para mostrarlos
       navigate("/user/campaigns", {
         replace: true,
         state: {
-          showAnalysisFor: created,   // campaña recién creada
-          analysisData: analysis,     // resultados o error
+          showAnalysisFor: created,
+          analysisData: analysis,
         },
       });
     } catch (err) {
