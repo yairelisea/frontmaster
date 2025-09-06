@@ -54,8 +54,11 @@ function withHeaders(init = {}) {
   // Admin header opcional
   if (ADMIN_HEADER) headers.set("x-admin", "true");
 
-  // Content-Type por defecto
-  if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+  // Content-Type por defecto solo si no es GET/HEAD y no hay Content-Type ya
+  const method = (init.method || "GET").toUpperCase();
+  if (!headers.has("Content-Type") && method !== "GET" && method !== "HEAD" && init.body != null) {
+    headers.set("Content-Type", "application/json");
+  }
 
   return { ...init, headers };
 }
@@ -506,6 +509,7 @@ export async function requestAnalysisPDF({
 
   const res = await fetch(`${API}/ai/report?${params.toString()}`, withHeaders({
     method: "GET",
+    headers: { Accept: "application/pdf" },
   }));
 
   if (!res.ok) {
@@ -519,4 +523,60 @@ export async function requestAnalysisPDF({
   }
 
   return blob;
+}
+
+/**
+ * Descarga un PDF para una campaña dada, usando requestAnalysisPDF y disparando descarga en navegador.
+ */
+export async function downloadCampaignPDF(campaign) {
+  const blob = await requestAnalysisPDF({
+    q: campaign.query,
+    size: campaign.size ?? 25,
+    days_back: campaign.days_back ?? 14,
+    lang: campaign.lang ?? "es-419",
+    country: campaign.country ?? "MX",
+    overall: true,
+  });
+
+  const filenameBase = (campaign.name || campaign.query || "reporte")
+    .toLowerCase()
+    .replace(/\s+/g, "_");
+  const filename = filenameBase + ".pdf";
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Descarga un PDF para parámetros arbitrarios, usando requestAnalysisPDF y disparando descarga en navegador.
+ */
+export async function downloadAnalysisPDFByParams({ q, size = 25, days_back = 14, lang = "es-419", country = "MX" }) {
+  const blob = await requestAnalysisPDF({
+    q,
+    size,
+    days_back,
+    lang,
+    country,
+    overall: true,
+  });
+
+  const filenameBase = (q || "reporte")
+    .toLowerCase()
+    .replace(/\s+/g, "_");
+  const filename = filenameBase + ".pdf";
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }

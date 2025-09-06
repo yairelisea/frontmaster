@@ -47,6 +47,12 @@ const UserCampaignsPage = () => {
   }
 
   useEffect(() => {
+    // si venimos de crear campaña y traemos analysisData en el state, persistimos en cache
+    if (location?.state?.showAnalysisFor && location?.state?.analysisData) {
+      try {
+        localStorage.setItem(`bbx:analysis:${location.state.showAnalysisFor.id}`, JSON.stringify(location.state.analysisData));
+      } catch {}
+    }
     // limpia el state de navegación para no re-rehidratar a cada render
     if (location.state) {
       window.history.replaceState({}, document.title);
@@ -170,7 +176,15 @@ const UserCampaignsPage = () => {
   async function handleExportPDF() {
     try {
       setExporting(true);
-      if (!analysisCampaign || !analysisData) return;
+      if (!analysisCampaign || !analysisData) {
+        setExporting(false);
+        toast({
+          title: 'Nada para exportar',
+          description: 'Primero ejecuta o carga un análisis.',
+          variant: 'destructive',
+        });
+        return;
+      }
 
       // Empaquetar datos para el backend
       const q = analysisCampaign.query;
@@ -182,12 +196,18 @@ const UserCampaignsPage = () => {
       // Aseguramos shape de items (con % y resumen corto)
       const items = (analysisData.items || []).map((it) => {
         const lbl = it.llm?.sentiment_label ?? it.sentiment_label ?? null;
-        const pct = toPercent0to100(it.llm?.sentiment_score, it.llm?.sentiment_score_pct ?? it.sentiment_percent);
+        const pct = toPercent0to100(
+          it.llm?.sentiment_score ?? it.sentiment_score,
+          it.llm?.sentiment_score_pct ?? it.sentiment_percent
+        );
         const summary = it.llm?.summary ?? it.summary ?? '';
+        const sourceVal = typeof it.source === 'string'
+          ? it.source
+          : (it.source?.name || it.outlet || '');
         return {
           title: it.title || it.headline || '',
           url: it.url || it.link || '',
-          source: it.source || it.outlet || '',
+          source: sourceVal,
           summary,
           sentiment_label: lbl,
           sentiment_percent: typeof pct === 'number' ? pct : null,
@@ -212,6 +232,9 @@ const UserCampaignsPage = () => {
         topics,
         items,
       });
+      if (!(blob instanceof Blob)) {
+        throw new Error('El backend no devolvió un PDF válido.');
+      }
 
       // Descargar
       const url = URL.createObjectURL(blob);
@@ -392,11 +415,12 @@ const UserCampaignsPage = () => {
                               </div>
                             );
                           })()}
-                          {it.source && (
-                            <div className="text-xs text-muted-foreground">
-                              {it.source}
-                            </div>
-                          )}
+                          {(() => {
+                            const s = typeof it.source === 'string' ? it.source : (it.source?.name || '');
+                            return s ? (
+                              <div className="text-xs text-muted-foreground">{s}</div>
+                            ) : null;
+                          })()}
                           {it.url && (
                             <a
                               href={it.url}
