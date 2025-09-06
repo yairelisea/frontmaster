@@ -186,12 +186,9 @@ const UserCampaignsPage = () => {
       setExporting(true);
       // Base URL del backend (sin slash final)
       const API = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
-      // Construir endpoint correcto: /reports/pdf/{campaign_id}
-      const campaignId = analysisCampaign.id;
-      if (!campaignId) {
-        throw new Error('ID de campaña no encontrado.');
-      }
-      const url = `${API}/reports/pdf/${encodeURIComponent(campaignId)}`;
+      // Construir endpoint correcto usando los parámetros de búsqueda, NO campaignId
+      const query = analysisCampaign.query || analysisCampaign.name;
+      const url = `${API}/reports/pdf?q=${encodeURIComponent(query)}&size=25&days_back=14&lang=es-419&country=MX`;
       // Headers: intentamos enviar Authorization si existe
       const headers = new Headers();
       const token = localStorage.getItem('auth_token');
