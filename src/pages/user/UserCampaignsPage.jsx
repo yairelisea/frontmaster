@@ -8,7 +8,7 @@ import { motion } from 'framer-motion';
 import { useToast } from '@/components/ui/use-toast';
 import { CampaignTable } from '@/components/user/campaigns/CampaignTable';
 import { Link, useLocation } from 'react-router-dom';
-import { fetchCampaigns, analyzeCampaign, requestAnalysisPDF } from '@/lib/api';
+import { fetchCampaigns, analyzeCampaign } from '@/lib/api';
 
 const UserCampaignsPage = () => {
   const { toast } = useToast();
@@ -172,106 +172,48 @@ const UserCampaignsPage = () => {
     }
   }
 
-  // Exportar PDF (vía backend /ai/report)
-  async function handleExportPDF() {
+  function handleExportPDF() {
+    if (!analysisCampaign) {
+      toast({
+        title: 'Nada para exportar',
+        description: 'Primero ejecuta o carga un análisis.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     try {
       setExporting(true);
-      if (!analysisCampaign || !analysisData) {
-        setExporting(false);
-        toast({
-          title: 'Nada para exportar',
-          description: 'Primero ejecuta o carga un análisis.',
-          variant: 'destructive',
-        });
-        return;
-      }
 
-      // Empaquetar datos para el backend
-      const q = analysisCampaign.query;
+      const API = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
+      const q = analysisCampaign.query || analysisCampaign.name || '';
       const size = analysisCampaign.size ?? 25;
       const days_back = analysisCampaign.days_back ?? 14;
       const lang = analysisCampaign.lang ?? 'es-419';
       const country = analysisCampaign.country ?? 'MX';
 
-      // Aseguramos shape de items (con % y resumen corto)
-      const items = (analysisData.items || []).map((it) => {
-        const lbl = it.llm?.sentiment_label ?? it.sentiment_label ?? null;
-        const pct = toPercent0to100(
-          it.llm?.sentiment_score ?? it.sentiment_score,
-          it.llm?.sentiment_score_pct ?? it.sentiment_percent
-        );
-        const summary = it.llm?.summary ?? it.summary ?? '';
-        const sourceVal = typeof it.source === 'string'
-          ? it.source
-          : (it.source?.name || it.outlet || '');
-        return {
-          title: it.title || it.headline || '',
-          url: it.url || it.link || '',
-          source: sourceVal,
-          summary,
-          sentiment_label: lbl,
-          sentiment_percent: typeof pct === 'number' ? pct : null,
-        };
-      });
-
-      const topics = analysisData.topics || analysisData.temas || [];
-
-      // Solicitar PDF al backend
-      const blob = await requestAnalysisPDF({
+      const params = new URLSearchParams({
         q,
-        size,
-        days_back,
+        size: String(size),
+        days_back: String(days_back),
+        overall: 'true',
         lang,
         country,
-        summary: analysisData.summary ?? null,
-        sentiment_label: analysisData.sentiment_label ?? null,
-        sentiment_percent: toPercent0to100(
-          analysisData.sentiment_score,
-          analysisData.sentiment_score_pct ?? analysisData.sentiment_percent
-        ),
-        topics,
-        items,
       });
-      if (!(blob instanceof Blob)) {
-        throw new Error('El backend no devolvió un PDF válido.');
+
+      const url = `${API}/ai/report?${params.toString()}`;
+
+      // Abrimos en nueva pestaña para que el navegador descargue el PDF
+      const win = window.open(url, '_blank', 'noopener,noreferrer');
+      if (!win) {
+        // Si el pop-up fue bloqueado, intentamos abrir en la misma pestaña
+        window.location.href = url;
       }
-
-      // Descargar
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      const safeName = String(analysisCampaign.name || 'reporte')
-        .normalize('NFKD')
-        .replace(/[^\w\s.-]/g, '')
-        .trim()
-        .replace(/\s+/g, '_')
-        .slice(0, 80);
-      a.href = url;
-      a.download = `${safeName}_${new Date().toISOString().slice(0, 10)}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-
-      // Abrir vista previa de impresión como opción adicional
-      if (window.report && typeof window.report.openPrintPreview === 'function') {
-        window.report.openPrintPreview({ campaign: analysisCampaign, analysis: analysisData });
-      }
-
-      toast({
-        title: 'PDF generado',
-        description: 'El reporte se ha descargado correctamente.',
-        className: 'bg-brand-green text-white',
-      });
     } catch (e) {
       console.error('PDF export error:', e);
-      // Fallback a vista previa de impresión si falla el backend
-      if (window.report && typeof window.report.openPrintPreview === 'function') {
-        window.report.openPrintPreview({ campaign: analysisCampaign, analysis: analysisData });
-      }
-      const msg = e?.message || 'Inténtalo nuevamente.';
       toast({
         title: 'No se pudo generar el PDF',
-        description: msg.length > 200 ? msg.slice(0, 197) + '…' : msg,
+        description: e?.message || 'Inténtalo de nuevo.',
         variant: 'destructive',
       });
     } finally {
