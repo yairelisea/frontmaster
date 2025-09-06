@@ -1,171 +1,302 @@
-// src/pages/user/UserCampaignsPage.jsx
-import React, { useState, useEffect } from 'react';
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { PlusCircle, Search } from 'lucide-react';
-import { motion } from 'framer-motion';
-import { useToast } from '@/components/ui/use-toast';
-import { CampaignTable } from '@/components/user/campaigns/CampaignTable';
-import { useNavigate, Link } from 'react-router-dom';
+// src/pages/user/UserDashboardPage.jsx
+import React, { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardFooter,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/components/ui/use-toast";
+import { motion } from "framer-motion";
+import { fetchCampaigns, ping } from "@/lib/api";
+import {
+  PlusCircle,
+  BarChart3,
+  Activity,
+  RefreshCw,
+  ExternalLink,
+} from "lucide-react";
 
-const API = (import.meta.env.VITE_API_URL || 'https://masterback.onrender.com').replace(/\/+$/, '');
-const FAKE_USER = import.meta.env.VITE_FAKE_USER_ID || 'dev-user-1';
+function formatDate(iso) {
+  if (!iso) return "—";
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString();
+  } catch {
+    return iso;
+  }
+}
 
-export default function UserCampaignsPage() {
-  const [campaigns, setCampaigns] = useState([]);
+const UserDashboardPage = () => {
   const [loading, setLoading] = useState(true);
-  const [errMsg, setErrMsg] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
+  const [health, setHealth] = useState(null);
+  const [campaigns, setCampaigns] = useState([]);
+  const [filter, setFilter] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  // helper: fetch con timeout
-  async function fetchWithTimeout(url, options = {}, ms = 15000) {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), ms);
-    try {
-      const res = await fetch(url, { ...options, signal: ctrl.signal });
-      return res;
-    } finally {
-      clearTimeout(t);
-    }
-  }
-
-  // carga inicial
+  // Carga inicial
   useEffect(() => {
-    let alive = true;
-
-    async function load() {
+    (async () => {
       try {
-        // 1) intento con header x-user-id
-        let res = await fetchWithTimeout(`${API}/campaigns`, {
-          headers: { 'Content-Type': 'application/json', 'x-user-id': FAKE_USER },
-        });
-
-        // 2) fallback: si el proxy limpia headers, usa ?userId=
-        if (!res.ok) {
-          const url = new URL(`${API}/campaigns`);
-          url.searchParams.set('userId', FAKE_USER);
-          res = await fetchWithTimeout(url.toString(), {
-            headers: { 'Content-Type': 'application/json' },
+        const [ok, list] = await Promise.allSettled([ping(), fetchCampaigns()]);
+        if (ok.status === "fulfilled") setHealth(ok.value);
+        if (list.status === "fulfilled") {
+          setCampaigns(Array.isArray(list.value) ? list.value : []);
+        } else {
+          toast({
+            title: "No se pudieron cargar las campañas",
+            description: list.reason?.message || "Intenta de nuevo en un momento.",
+            variant: "destructive",
           });
         }
-
-        if (!res.ok) {
-          const body = await res.text().catch(() => '');
-          throw new Error(`GET /campaigns falló: ${res.status} ${body}`);
-        }
-
-        const data = await res.json();
-        if (!alive) return;
-
-        setCampaigns(Array.isArray(data) ? data : []);
       } catch (e) {
-        console.error('fetchCampaigns error:', e);
-        if (!alive) return;
-        setErrMsg('No se pudieron cargar las campañas');
         toast({
-          title: 'Error',
-          description: 'No se pudieron cargar las campañas',
-          variant: 'destructive',
+          title: "Error al cargar el tablero",
+          description: e?.message || "Intenta de nuevo.",
+          variant: "destructive",
         });
       } finally {
-        if (alive) setLoading(false);
+        setLoading(false);
       }
-    }
-
-    load();
-    return () => { alive = false; };
+    })();
   }, [toast]);
 
-  // filtro local por nombre o query
-  const filtered = campaigns.filter(c =>
-    (c.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (c.query || '').toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  // mapeo a las columnas esperadas por CampaignTable
-  const tableData = filtered.map(c => ({
-    id: c.id,
-    name: c.name,
-    target: c.query,                          // usamos "query" como target visibles
-    status: 'Activa',                         // placeholder: ajusta cuando tengas estado real
-    mentions: 0,                              // placeholder: podrás traerlo de /analyses
-    sentiment: '—',                           // placeholder
-    startDate: (c.createdAt || '').slice(0, 10),
-    endDate: '—',
-  }));
-
-  const handleEditCampaign = (campaign) => {
-    navigate(`/user/campaigns/edit/${campaign.id}`);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      const list = await fetchCampaigns();
+      setCampaigns(Array.isArray(list) ? list : []);
+      toast({
+        title: "Actualizado",
+        description: "Datos del tablero actualizados.",
+      });
+    } catch (e) {
+      toast({
+        title: "No se pudieron actualizar las campañas",
+        description: e?.message || "Intenta de nuevo.",
+        variant: "destructive",
+      });
+    } finally {
+      setRefreshing(false);
+    }
   };
 
-  const handleOpenNewForm = () => {
-    navigate('/user/campaigns/new');
-  };
+  const filtered = useMemo(() => {
+    const f = (filter || "").toLowerCase().trim();
+    if (!f) return campaigns;
+    return campaigns.filter(
+      (c) =>
+        c.name?.toLowerCase().includes(f) ||
+        c.query?.toLowerCase().includes(f) ||
+        c.country?.toLowerCase().includes(f)
+    );
+  }, [campaigns, filter]);
 
-  const toggleCampaignStatus = () => {
-    // TODO: cuando tengas API para activar/pausar
-    toast({ title: 'Pendiente', description: 'Pronto podrás pausar/activar campañas.' });
-  };
-
-  const deleteCampaign = () => {
-    // TODO: llamada DELETE /campaigns/{id}
-    toast({ title: 'Pendiente', description: 'Eliminar campañas estará disponible pronto.' });
-  };
+  const totalCampaigns = campaigns.length;
+  const lastCreated =
+    totalCampaigns > 0
+      ? [...campaigns]
+          .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0]
+      : null;
 
   return (
     <motion.div
-      initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}
       className="space-y-6"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.25 }}
     >
-      <Card className="shadow-xl overflow-hidden border-t-4 border-brand-green">
-        <CardHeader className="bg-gray-50 p-4 md:p-6">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div>
-              <CardTitle className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
-                Mis Campañas
-              </CardTitle>
-              <CardDescription className="text-sm text-muted-foreground">
-                Gestiona tus campañas de monitoreo activas, pausadas o finalizadas.
-              </CardDescription>
-            </div>
-            <Link to="/user/campaigns/new">
-              <Button size="lg" className="bg-brand-green hover:bg-brand-green/90 text-primary-foreground w-full md:w-auto">
-                <PlusCircle className="mr-2 h-5 w-5" /> Crear Nueva Campaña
-              </Button>
-            </Link>
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Tablero</h1>
+          <p className="text-muted-foreground">
+            Resumen de tus campañas y salud del servicio.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            onClick={onRefresh}
+            variant="outline"
+            className="gap-2"
+            disabled={refreshing}
+            title="Actualizar"
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+            Actualizar
+          </Button>
+          <Button
+            className="bg-brand-green hover:bg-brand-green/90 gap-2"
+            onClick={() => navigate("/user/campaigns/new")}
+          >
+            <PlusCircle className="h-4 w-4" />
+            Nueva campaña
+          </Button>
+        </div>
+      </div>
+
+      {/* Métricas rápidas */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Total de campañas</CardDescription>
+            <CardTitle className="text-3xl">
+              {loading ? <Skeleton className="h-8 w-20" /> : totalCampaigns}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            Conteo total asociadas a tu cuenta.
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Última creada</CardDescription>
+            <CardTitle className="text-xl">
+              {loading ? (
+                <Skeleton className="h-6 w-40" />
+              ) : lastCreated ? (
+                lastCreated.name
+              ) : (
+                "—"
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            {loading ? (
+              <Skeleton className="h-4 w-48" />
+            ) : lastCreated ? (
+              <>Creada el {formatDate(lastCreated.createdAt)}</>
+            ) : (
+              <>Aún no tienes campañas.</>
+            )}
+          </CardContent>
+          {lastCreated && (
+            <CardFooter>
+              <Link
+                to="/user/campaigns"
+                className="text-brand-green inline-flex items-center gap-1 text-sm"
+              >
+                Ver campañas <ExternalLink className="h-3.5 w-3.5" />
+              </Link>
+            </CardFooter>
+          )}
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Salud del backend</CardDescription>
+            <CardTitle className="text-xl flex items-center gap-2">
+              <Activity className="h-5 w-5" />
+              {loading ? "…" : health?.ok ? "OK" : "Sin datos"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            {loading
+              ? "Comprobando /health…"
+              : health?.ok
+              ? "El servicio respondió correctamente."
+              : "No se pudo comprobar la salud del servicio."}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Buscador y tabla de recientes */}
+      <Card className="shadow-sm">
+        <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5" />
+              Campañas recientes
+            </CardTitle>
+            <CardDescription>
+              Las más nuevas primero. Filtra por nombre, query o país.
+            </CardDescription>
+          </div>
+          <div className="w-full sm:w-64">
+            <Input
+              placeholder="Filtrar campañas…"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              className="focus-visible:ring-brand-green"
+            />
           </div>
         </CardHeader>
-
-        <CardContent className="p-4 md:p-6 space-y-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por nombre o término (query)…"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 w-full md:w-2/3 lg:w-1/2 focus-visible:ring-brand-green"
-            />
-          </div>
-
+        <CardContent className="overflow-x-auto">
           {loading ? (
-            <div className="text-sm text-muted-foreground">Cargando campañas…</div>
-          ) : errMsg ? (
-            <div className="text-sm text-red-600">{errMsg}</div>
+            <div className="space-y-2">
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-[90%]" />
+              <Skeleton className="h-8 w-[80%]" />
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="text-sm text-muted-foreground py-8 text-center">
+              {campaigns.length === 0 ? (
+                <>
+                  No tienes campañas.{" "}
+                  <button
+                    onClick={() => navigate("/user/campaigns/new")}
+                    className="text-brand-green underline"
+                  >
+                    Crea la primera
+                  </button>
+                  .
+                </>
+              ) : (
+                <>No hay resultados que coincidan con el filtro.</>
+              )}
+            </div>
           ) : (
-            <CampaignTable
-              campaigns={tableData}
-              allCampaignsCount={campaigns.length}
-              onEdit={handleEditCampaign}
-              onToggleStatus={(id) => toggleCampaignStatus(id)}
-              onDelete={(id) => deleteCampaign(id)}
-              onOpenNewForm={handleOpenNewForm}
-            />
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nombre</TableHead>
+                  <TableHead>Query</TableHead>
+                  <TableHead>País</TableHead>
+                  <TableHead>Idioma</TableHead>
+                  <TableHead>Resultados</TableHead>
+                  <TableHead>Días</TableHead>
+                  <TableHead>Creada</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered
+                  .slice(0, 8)
+                  .map((c) => (
+                    <TableRow key={c.id} className="hover:bg-muted/30">
+                      <TableCell className="font-medium">{c.name}</TableCell>
+                      <TableCell className="text-muted-foreground">{c.query}</TableCell>
+                      <TableCell className="text-muted-foreground">{c.country || "—"}</TableCell>
+                      <TableCell className="text-muted-foreground">{c.lang || "—"}</TableCell>
+                      <TableCell className="text-muted-foreground">{c.size ?? 25}</TableCell>
+                      <TableCell className="text-muted-foreground">{c.days_back ?? 14}</TableCell>
+                      <TableCell className="text-muted-foreground">{formatDate(c.createdAt)}</TableCell>
+                    </TableRow>
+                  ))}
+              </TableBody>
+            </Table>
           )}
         </CardContent>
+        <CardFooter className="flex justify-end">
+          <Link to="/user/campaigns">
+            <Button variant="outline" className="gap-2">
+              Ver todas
+              <ExternalLink className="h-4 w-4" />
+            </Button>
+          </Link>
+        </CardFooter>
       </Card>
     </motion.div>
   );
-}
+};
+
+export default UserDashboardPage;
