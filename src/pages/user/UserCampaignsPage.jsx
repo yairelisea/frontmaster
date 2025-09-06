@@ -1,3 +1,4 @@
+// src/pages/user/UserCampaignsPage.jsx
 import React, { useEffect, useMemo, useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,6 +12,8 @@ import { fetchCampaigns, analyzeCampaign } from '@/lib/api';
 
 const UserCampaignsPage = () => {
   const { toast } = useToast();
+
+  // Estado de campañas
   const [loading, setLoading] = useState(true);
   const [campaigns, setCampaigns] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -18,10 +21,10 @@ const UserCampaignsPage = () => {
   // Estado para análisis IA
   const [analyzingId, setAnalyzingId] = useState(null);
   const [analysisError, setAnalysisError] = useState(null);
-  const [analysisData, setAnalysisData] = useState(null); // { summary, sentiment_label, sentiment_score, topics, items, raw }
+  const [analysisData, setAnalysisData] = useState(null); // normalizado: { summary, sentiment_label, sentiment_score, topics, items, raw }
   const [analysisCampaign, setAnalysisCampaign] = useState(null);
 
-  // Cargar campañas reales
+  // Cargar campañas reales desde el backend
   async function loadCampaigns() {
     try {
       setLoading(true);
@@ -43,6 +46,7 @@ const UserCampaignsPage = () => {
     loadCampaigns();
   }, []);
 
+  // Búsqueda local
   const filteredCampaigns = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
     if (!q) return campaigns;
@@ -125,7 +129,7 @@ const UserCampaignsPage = () => {
               allCampaignsCount={campaigns.length}
               onAnalyze={handleAnalyze}
               analyzingId={analyzingId}
-              // onEdit / onDelete si los usas más adelante
+              // Puedes pasar onEdit / onDelete cuando estén listos
             />
           )}
         </CardContent>
@@ -139,7 +143,7 @@ const UserCampaignsPage = () => {
               Resultados IA {analysisCampaign ? `– ${analysisCampaign.name}` : ''}
             </CardTitle>
             <CardDescription>
-              Vista rápida del análisis; incluye resumen, sentimiento, tópicos y notas detectadas.
+              Resumen, sentimiento, tópicos y notas analizadas (vista rápida).
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
