@@ -9,6 +9,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { CampaignTable } from '@/components/user/campaigns/CampaignTable';
 import { Link, useLocation } from 'react-router-dom';
 import { fetchCampaigns, analyzeCampaign } from '@/lib/api';
+import { generatePDF } from '@/lib/report';
 
 const UserCampaignsPage = () => {
   const { toast } = useToast();
@@ -53,6 +54,17 @@ const UserCampaignsPage = () => {
     loadCampaigns();
   }, []);
 
+  // Helpers de presentación para sentimiento y recortes
+  const toPercent0to100 = (score, pct) => {
+    if (typeof pct === 'number') return Math.round(pct);
+    if (typeof score === 'number') return Math.round(((score + 1) / 2) * 100); // -1..1 -> 0..100
+    return null;
+  };
+  const clip = (str, n = 220) => {
+    if (!str || typeof str !== 'string') return '';
+    return str.length > n ? str.slice(0, n - 1) + '…' : str;
+  };
+
   // Búsqueda local
   const filteredCampaigns = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
@@ -88,6 +100,18 @@ const UserCampaignsPage = () => {
       });
     } finally {
       setAnalyzingId(null);
+    }
+  }
+
+  async function handleExportPDF() {
+    try {
+      if (!analysisCampaign || !analysisData) return;
+      await generatePDF({
+        campaign: analysisCampaign,
+        analysis: analysisData,
+      });
+    } catch (e) {
+      console.error('PDF export error:', e);
     }
   }
 
@@ -145,13 +169,23 @@ const UserCampaignsPage = () => {
       {/* Panel de resultados de IA */}
       {(analysisCampaign || analysisData || analysisError) && (
         <Card className="border shadow-md">
-          <CardHeader>
-            <CardTitle className="text-xl">
-              Resultados IA {analysisCampaign ? `– ${analysisCampaign.name}` : ''}
-            </CardTitle>
-            <CardDescription>
-              Resumen, sentimiento, tópicos y notas analizadas (vista rápida).
-            </CardDescription>
+          <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+            <div>
+              <CardTitle className="text-xl">
+                Resultados IA {analysisCampaign ? `– ${analysisCampaign.name}` : ''}
+              </CardTitle>
+              <CardDescription>
+                Resumen, sentimiento, tópicos y notas analizadas (vista rápida).
+              </CardDescription>
+            </div>
+            {analysisData ? (
+              <Button
+                onClick={handleExportPDF}
+                className="bg-brand-green hover:bg-brand-green/90 text-primary-foreground"
+              >
+                Exportar PDF
+              </Button>
+            ) : null}
           </CardHeader>
           <CardContent className="space-y-4">
             {!analysisData && !analysisError && (
@@ -171,11 +205,12 @@ const UserCampaignsPage = () => {
                     <div className="text-lg font-semibold">
                       {analysisData.sentiment_label ?? 'N/A'}
                     </div>
-                    {typeof analysisData.sentiment_score === 'number' && (
-                      <div className="text-xs text-muted-foreground">
-                        Score: {analysisData.sentiment_score.toFixed(2)}
-                      </div>
-                    )}
+                    {(() => {
+                      const pct = toPercent0to100(analysisData.sentiment_score, analysisData.sentiment_score_pct);
+                      return typeof pct === 'number' ? (
+                        <div className="text-xs text-muted-foreground">Sentimiento: {pct}%</div>
+                      ) : null;
+                    })()}
                   </div>
                   <div className="p-4 rounded-lg border bg-card md:col-span-2">
                     <div className="text-xs text-muted-foreground mb-1">Resumen</div>
@@ -191,7 +226,7 @@ const UserCampaignsPage = () => {
                     <div className="text-xs text-muted-foreground mb-1">Tópicos</div>
                     <div className="flex flex-wrap gap-2">
                       {analysisData.topics.map((t, i) => (
-                        <span key={i} className="text-xs px-2 py-1 rounded-full bg-muted">
+                        <span key={i} className="text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200">
                           {t}
                         </span>
                       ))}
@@ -209,6 +244,17 @@ const UserCampaignsPage = () => {
                           <div className="font-medium">
                             {it.title || it.headline || `Nota ${idx + 1}`}
                           </div>
+                          {(() => {
+                            const lbl = it.llm?.sentiment_label;
+                            const pct = toPercent0to100(it.llm?.sentiment_score, it.llm?.sentiment_score_pct);
+                            if (!lbl && typeof pct !== 'number') return null;
+                            return (
+                              <div className="text-xs text-muted-foreground">
+                                {lbl ? `Sentimiento: ${lbl}` : ''}
+                                {typeof pct === 'number' ? (lbl ? ` · ${pct}%` : `${pct}%`) : ''}
+                              </div>
+                            );
+                          })()}
                           {it.source && (
                             <div className="text-xs text-muted-foreground">
                               {it.source}
@@ -223,9 +269,12 @@ const UserCampaignsPage = () => {
                               Abrir
                             </a>
                           )}
-                          {it.summary && (
-                            <div className="text-sm mt-1 text-muted-foreground">{it.summary}</div>
-                          )}
+                          {(() => {
+                            const short = it.llm?.summary || it.summary;
+                            return short ? (
+                              <div className="text-sm mt-1 text-muted-foreground">{clip(short)}</div>
+                            ) : null;
+                          })()}
                         </li>
                       ))}
                     </ul>

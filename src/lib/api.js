@@ -188,45 +188,97 @@ export async function getCampaign(id) {
 }
 
 // ========= AI Analysis =========
-/**
- * Normaliza distintas respuestas del endpoint de análisis.
- */
+// --- helpers for normalization ---
+function toPercent(score) {
+  // Handles -1..1, 0..1, or already-in-percent values
+  if (score == null || isNaN(Number(score))) return null;
+  const s = Number(score);
+
+  // if looks like 0..1
+  if (s >= 0 && s <= 1) return Math.round(s * 100);
+
+  // if looks like -1..1
+  if (s >= -1 && s <= 1) return Math.round(((s + 1) / 2) * 100);
+
+  // otherwise assume already percent-like; clamp to [0,100]
+  return Math.max(0, Math.min(100, Math.round(s)));
+}
+
+function normalizeItem(it) {
+  // Prefer llm.* if available
+  const llm = it?.llm || {};
+  const title = it?.title || it?.headline || "";
+  const url = it?.url || it?.link || "";
+  const source = it?.source || it?.outlet || "";
+  const baseSummary = llm.summary ?? it?.summary ?? "";
+
+  // Short summary (for list & PDF)
+  const summary_short = baseSummary
+    ? (String(baseSummary).length > 240
+        ? String(baseSummary).slice(0, 237) + "..."
+        : String(baseSummary))
+    : "";
+
+  // sentiment
+  const label = llm.sentiment_label ?? it?.sentiment_label ?? null;
+  const score = llm.sentiment_score ?? it?.sentiment_score ?? null;
+
+  return {
+    ...it,
+    title,
+    url,
+    source,
+    summary: baseSummary || null,
+    summary_short: summary_short || null,
+    sentiment_label: label,
+    sentiment_score: score,
+    sentiment_percent: toPercent(score),
+    topics: llm.topics ?? it?.topics ?? [],
+    perception: llm.perception ?? it?.perception ?? {},
+  };
+}
+
 export function normalizeAnalysis(raw) {
-  if (!raw || typeof raw !== "object") return { meta: raw };
+  if (!raw || typeof raw !== "object") return { meta: raw, items: [] };
 
-  // Caso A: objeto con 'overall'
-  if (raw.overall && typeof raw.overall === "object") {
-    return {
-      summary: raw.overall.summary ?? raw.summary ?? null,
-      sentiment_label: raw.overall.sentiment_label ?? raw.sentiment_label ?? null,
-      sentiment_score: raw.overall.sentiment_score ?? raw.sentiment_score ?? null,
-      topics: raw.overall.topics ?? raw.topics ?? [],
-      perception: raw.overall.perception ?? raw.perception ?? {},
-      items: raw.items ?? raw.results ?? raw.articles ?? [],
-      raw,
-    };
-  }
+  // When the backend returns overall + items
+  const hasOverall = raw.overall && typeof raw.overall === "object";
 
-  // Caso B: plano con campos directos
-  if ("summary" in raw || "sentiment_label" in raw || "sentiment_score" in raw) {
-    return {
-      summary: raw.summary ?? null,
-      sentiment_label: raw.sentiment_label ?? null,
-      sentiment_score: raw.sentiment_score ?? null,
-      topics: raw.topics ?? [],
-      perception: raw.perception ?? {},
-      items: raw.items ?? raw.results ?? raw.articles ?? [],
-      raw,
-    };
-  }
+  const summary =
+    (hasOverall ? raw.overall.summary : raw.summary) ?? null;
 
-  // Caso C: solo lista de artículos
-  if (Array.isArray(raw.results) || Array.isArray(raw.items) || Array.isArray(raw.articles)) {
-    const items = raw.results ?? raw.items ?? raw.articles ?? [];
-    return { summary: null, sentiment_label: null, sentiment_score: null, topics: [], perception: {}, items, raw };
-  }
+  const sentiment_label =
+    (hasOverall ? raw.overall.sentiment_label : raw.sentiment_label) ?? null;
 
-  return { summary: null, sentiment_label: null, sentiment_score: null, topics: [], perception: {}, items: [], raw };
+  const sentiment_score =
+    (hasOverall ? raw.overall.sentiment_score : raw.sentiment_score) ?? null;
+
+  const sentiment_percent = toPercent(sentiment_score);
+
+  const topics =
+    (hasOverall ? raw.overall.topics : raw.topics) ?? [];
+
+  const perception =
+    (hasOverall ? raw.overall.perception : raw.perception) ?? {};
+
+  // Normalize items list (accept several shapes)
+  const itemsRaw = raw.items ?? raw.results ?? raw.articles ?? [];
+  const items = Array.isArray(itemsRaw) ? itemsRaw.map(normalizeItem) : [];
+
+  // For convenience in the UI/PDF, alias topics to "temas"
+  const temas = topics;
+
+  return {
+    summary,
+    sentiment_label,
+    sentiment_score,
+    sentiment_percent,
+    topics,
+    temas,              // alias for UI styling (chips verdes)
+    perception,
+    items,
+    raw,
+  };
 }
 
 export async function analyzeNews({
