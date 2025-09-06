@@ -1,7 +1,8 @@
+// src/App.jsx
 import React from "react";
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from "react-router-dom";
 
-// Contexto de auth (ya lo tienes)
+// Contexto de auth (usa el que ya tienes)
 import { useAuth } from "@/context/AuthContext";
 
 // Layouts
@@ -34,71 +35,91 @@ import RegisterPage from "@/pages/auth/RegisterPage";
 
 import { Toaster } from "@/components/ui/toaster";
 
-function AppRoutes() {
-  const { isAuthenticated, user } = useAuth();
-  const role = user?.role || "user"; // "admin" | "user"
-
-  // 1) No logueado → solo stack de Auth
-  if (!isAuthenticated) {
-    return (
-      <Routes>
-        <Route path="/auth" element={<AuthLayout />}>
-          <Route index element={<Navigate to="login" replace />} />
-          <Route path="login" element={<LoginPage />} />
-          <Route path="register" element={<RegisterPage />} />
-        </Route>
-        {/* cualquier otra ruta redirige a login */}
-        <Route path="*" element={<Navigate to="/auth/login" replace />} />
-      </Routes>
-    );
-  }
-
-  // 2) Logueado admin → solo stack Admin
-  if (role === "admin") {
-    return (
-      <Routes>
-        <Route path="/admin" element={<AdminLayout />}>
-          <Route index element={<Navigate to="dashboard" replace />} />
-          <Route path="dashboard" element={<AdminDashboardPage />} />
-          <Route path="users" element={<UserManagementPage />} />
-          <Route path="plans" element={<PlansSubscriptionsPage />} />
-          <Route path="campaigns" element={<ActiveCampaignsPage />} />
-          <Route path="social" element={<SocialConnectionsPage />} />
-          <Route path="logs" element={<LogsActivityPage />} />
-          <Route path="settings" element={<GeneralSettingsPage />} />
-        </Route>
-        {/* fallback del árbol admin */}
-        <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
-      </Routes>
-    );
-  }
-
-  // 3) Logueado user → solo stack User
-  return (
-    <Routes>
-      <Route path="/user" element={<UserLayout />}>
-        <Route index element={<Navigate to="dashboard" replace />} />
-        <Route path="dashboard" element={<UserDashboardPage />} />
-        <Route path="campaigns" element={<UserCampaignsPage />} />
-        <Route path="campaigns/new" element={<CampaignFormPage />} />
-        <Route path="campaigns/edit/:campaignId" element={<CampaignFormPage />} />
-        <Route path="posts" element={<UserPostsMentionsPage />} />
-        <Route path="analytics" element={<UserAnalyticsPage />} />
-        <Route path="connect" element={<UserConnectAccountsPage />} />
-        <Route path="plans" element={<UserPlansPage />} />
-        <Route path="compare" element={<UserProfileComparisonPage />} />
-      </Route>
-      {/* fallback del árbol user */}
-      <Route path="*" element={<Navigate to="/user/dashboard" replace />} />
-    </Routes>
-  );
+/* ---------- Guards ---------- */
+function PrivateRoute() {
+  const { isAuthenticated } = useAuth();
+  if (!isAuthenticated) return <Navigate to="/auth/login" replace />;
+  return <Outlet />;
 }
 
-export default function App() {
+function PublicOnlyRoute() {
+  const { isAuthenticated } = useAuth();
+  if (isAuthenticated) return <Navigate to="/user/dashboard" replace />;
+  return <Outlet />;
+}
+
+function App() {
+  const { isAuthenticated } = useAuth();
+
   return (
     <Router>
       <Toaster />
-      <AppRoutes />
+      <Routes>
+        {/* Root: decide según sesión */}
+        <Route
+          path="/"
+          element={
+            isAuthenticated ? (
+              <Navigate to="/user/dashboard" replace />
+            ) : (
+              <Navigate to="/auth/login" replace />
+            )
+          }
+        />
+
+        {/* Auth (solo si NO hay sesión) */}
+        <Route element={<PublicOnlyRoute />}>
+          <Route path="/auth" element={<AuthLayout />}>
+            <Route index element={<Navigate to="login" replace />} />
+            <Route path="login" element={<LoginPage />} />
+            <Route path="register" element={<RegisterPage />} />
+          </Route>
+        </Route>
+
+        {/* User (protegido) */}
+        <Route element={<PrivateRoute />}>
+          <Route path="/user" element={<UserLayout />}>
+            <Route index element={<Navigate to="dashboard" replace />} />
+            <Route path="dashboard" element={<UserDashboardPage />} />
+            <Route path="campaigns" element={<UserCampaignsPage />} />
+            <Route path="campaigns/new" element={<CampaignFormPage />} />
+            <Route path="campaigns/edit/:campaignId" element={<CampaignFormPage />} />
+            <Route path="posts" element={<UserPostsMentionsPage />} />
+            <Route path="analytics" element={<UserAnalyticsPage />} />
+            <Route path="connect" element={<UserConnectAccountsPage />} />
+            <Route path="plans" element={<UserPlansPage />} />
+            <Route path="compare" element={<UserProfileComparisonPage />} />
+          </Route>
+        </Route>
+
+        {/* Admin (protegido) */}
+        <Route element={<PrivateRoute />}>
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route index element={<Navigate to="dashboard" replace />} />
+            <Route path="dashboard" element={<AdminDashboardPage />} />
+            <Route path="users" element={<UserManagementPage />} />
+            <Route path="plans" element={<PlansSubscriptionsPage />} />
+            <Route path="campaigns" element={<ActiveCampaignsPage />} />
+            <Route path="social" element={<SocialConnectionsPage />} />
+            <Route path="logs" element={<LogsActivityPage />} />
+            <Route path="settings" element={<GeneralSettingsPage />} />
+          </Route>
+        </Route>
+
+        {/* Fallback */}
+        <Route
+          path="*"
+          element={
+            isAuthenticated ? (
+              <Navigate to="/user/dashboard" replace />
+            ) : (
+              <Navigate to="/auth/login" replace />
+            )
+          }
+        />
+      </Routes>
     </Router>
   );
 }
+
+export default App;
