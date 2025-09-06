@@ -1,12 +1,10 @@
 // src/lib/report.js
-import jsPDF from "jspdf";
+// Versión sin dependencias externas (sin jspdf / jspdf-autotable)
+// Genera un reporte imprimible (HTML) y abre el diálogo del navegador para "Imprimir como PDF".
+// Si en el futuro vuelves a añadir jsPDF, podrás reintroducirlo aquí sin romper el build.
 
-/**
- * Convierte un score de -1..1 o 0..1 a porcentaje 0..100
- */
 function toPercent(score) {
   if (score == null || isNaN(score)) return null;
-  // si viene en -1..1 lo llevamos a 0..1
   const norm = score >= -1 && score <= 1 ? (score + 1) / 2 : score;
   return Math.round(Math.max(0, Math.min(1, norm)) * 100);
 }
@@ -25,53 +23,23 @@ function short(text, n = 180) {
   return text.length > n ? text.slice(0, n - 1) + "…" : text;
 }
 
-/**
- * Dibuja "chips" (tópicos) en verde. Devuelve la nueva Y.
- */
-function drawGreenChips(doc, topics = [], startX, startY, maxWidth) {
-  const padX = 3;
-  const padY = 1.6;
-  const gap = 3;
-  const lineH = 8;
-
-  let x = startX;
-  let y = startY;
-  const fontSize = 10;
-
-  doc.setFontSize(fontSize);
-
-  topics.forEach((t) => {
-    const label = String(t);
-    const w = doc.getTextWidth(label) + padX * 2;
-    if (x + w > maxWidth) {
-      x = startX;
-      y += lineH;
-    }
-    // chip verde
-    doc.setDrawColor(34, 197, 94);   // green-500 aprox
-    doc.setFillColor(220, 252, 231); // green-100
-    doc.roundedRect(x, y - fontSize + 6, w, lineH, 2, 2, "FD");
-    doc.setTextColor(22, 163, 74);   // green-600
-    doc.text(label, x + padX, y);
-    x += w + gap;
-  });
-
-  doc.setTextColor(33, 37, 41); // reset
-  return y + 2;
+function esc(str) {
+  return String(str || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
 /**
- * Genera el PDF de resultados de análisis
+ * Genera un HTML imprimible con el reporte y abre la ventana de impresión.
+ * El usuario puede guardar como PDF desde el diálogo de impresión.
  *
  * @param {object} analysis - objeto normalizado (summary, sentiment_label, sentiment_score_percent, topics, items[])
  * @param {object} campaign - campaña { name, query, country, lang, createdAt, ... }
  * @param {object} options  - { logoUrl?, filename? }
  */
 export async function generateAnalysisPDF(analysis, campaign, options = {}) {
-  // 🔹 Carga dinámica para evitar errores de resolución en la build
-  //    (Asegúrate de tener instalado: npm i jspdf jspdf-autotable)
-  await import("jspdf-autotable");
-
+  // Datos base
   const {
     summary,
     sentiment_label,
@@ -89,162 +57,192 @@ export async function generateAnalysisPDF(analysis, campaign, options = {}) {
     createdAt = "",
   } = campaign || {};
 
-  const { logoUrl = null, filename = `Reporte_${name || "campaña"}.pdf` } = options;
-
-  const doc = new jsPDF({ unit: "pt", format: "a4" });
-  const pageW = doc.internal.pageSize.getWidth();
-  const margin = 40;
-  let y = margin;
-
-  // --------- Portada ----------
-  if (logoUrl) {
-    try {
-      const dataUrl = await fetch(logoUrl)
-        .then((r) => r.blob())
-        .then(
-          (b) =>
-            new Promise((res, rej) => {
-              const fr = new FileReader();
-              fr.onload = () => res(fr.result);
-              fr.onerror = rej;
-              fr.readAsDataURL(b);
-            })
-        );
-      const imgW = 140;
-      doc.addImage(dataUrl, "PNG", margin, y, imgW, imgW * 0.26);
-    } catch {
-      // si falla el logo, seguimos
-    }
-  }
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(20);
-  doc.text("BlackBox Monitor – Reporte de Campaña", margin, y + 80);
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(12);
-  const infoLines = [
-    `Nombre: ${name || "-"}`,
-    `Búsqueda: ${query || "-"}`,
-    `País / Idioma: ${country || "-"} / ${lang || "-"}`,
-    `Creada: ${fmtDate(createdAt) || "-"}`,
-  ];
-  infoLines.forEach((line, i) => {
-    doc.text(line, margin, y + 110 + i * 16);
-  });
-
-  // Bloque de sentimiento en %
   const scorePct =
     typeof sentiment_score_percent === "number"
       ? sentiment_score_percent
       : toPercent(sentiment_score);
-  const label = sentiment_label || "N/A";
 
-  doc.setDrawColor(229, 231, 235);
-  doc.roundedRect(margin, y + 150, pageW - margin * 2, 70, 6, 6);
-  doc.setFont("helvetica", "bold");
-  doc.text("Sentimiento (IA)", margin + 12, y + 170);
-  doc.setFont("helvetica", "normal");
-  doc.text(`Etiqueta: ${label}`, margin + 12, y + 190);
-  doc.text(
-    `Score: ${scorePct != null ? scorePct + " %" : "N/A"}`,
-    margin + 12,
-    y + 206
-  );
+  const meta = [
+    ["Nombre", name || "-"],
+    ["Búsqueda", query || "-"],
+    ["País / Idioma", `${country || "-"} / ${lang || "-"}`],
+    ["Creada", fmtDate(createdAt) || "-"],
+    ["Sentimiento (Etiqueta)", sentiment_label || "N/A"],
+    ["Sentimiento (Score)", scorePct != null ? `${scorePct}%` : "N/A"],
+  ];
 
-  // --------- Resumen ----------
-  let blockTop = y + 240;
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(14);
-  doc.text("Resumen Ejecutivo", margin, blockTop);
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(11);
-  const summaryText = summary || "Sin resumen disponible.";
-  const summaryLines = doc.splitTextToSize(summaryText, pageW - margin * 2);
-  doc.text(summaryLines, margin, blockTop + 18);
-
-  // --------- Tópicos (verde) ----------
-  let topicsY = blockTop + 18 + summaryLines.length * 13 + 12;
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(12);
-  doc.text("Temas", margin, topicsY);
-  topicsY += 16;
-  topicsY = drawGreenChips(doc, topics, margin, topicsY, pageW - margin);
-
-  if (topicsY > 700) {
-    doc.addPage();
-    topicsY = margin;
+  // HTML inline (estilos sencillos y “chips” verdes para temas)
+  const html = `<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Reporte – ${esc(name)}</title>
+<style>
+  :root{
+    --brand-green: #16a34a; /* green-600 */
+    --brand-green-500:#22c55e; /* green-500 */
+    --brand-green-100:#dcfce7; /* green-100 */
+    --muted:#6b7280; /* gray-500 */
+    --border:#e5e7eb; /* gray-200 */
+    --bg:#ffffff;
+    --text:#111827; /* gray-900 */
   }
+  *{ box-sizing: border-box; }
+  body{ margin:0; padding:32px; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"; color:var(--text); background:var(--bg); }
+  .container{ max-width: 1024px; margin: 0 auto; }
+  .header{ display:flex; align-items:center; gap:16px; margin-bottom: 8px; }
+  .logo{ height:48px; object-fit:contain; }
+  h1{ font-size: 20px; margin: 0 0 6px; }
+  .meta{ border:1px solid var(--border); border-radius:8px; padding:12px 16px; margin-bottom: 16px; }
+  .meta dl{ display:grid; grid-template-columns: 160px 1fr; gap:8px 16px; margin:0; }
+  .meta dt{ color:var(--muted); }
+  .meta dd{ margin:0; }
+  .block{ margin-top: 18px; }
+  .block h2{ font-size:16px; margin:0 0 8px; }
+  .summary{ white-space: pre-wrap; line-height:1.45; }
+  .chips{ display:flex; flex-wrap: wrap; gap:8px; }
+  .chip{ background: var(--brand-green-100); color: var(--brand-green); border:1px solid var(--brand-green-500); padding: 4px 8px; border-radius: 999px; font-size: 12px; }
+  table{ width:100%; border-collapse: collapse; }
+  thead th{ text-align:left; background: var(--brand-green-500); color: #fff; padding:8px; font-size:12px; }
+  tbody td{ border:1px solid var(--border); padding:8px; vertical-align: top; font-size:12px; }
+  .muted{ color: var(--muted); }
+  .url{ color:#64748b; text-decoration: underline; }
+  @media print{
+    a.url{ color:#000; text-decoration:none; }
+    .no-print{ display:none; }
+    body{ padding: 12mm; }
+  }
+  .actions{ margin: 12px 0 24px; }
+  .actions button{ padding: 8px 12px; border:1px solid var(--border); background:#fff; border-radius:6px; cursor:pointer; }
+  .actions button.primary{ background: var(--brand-green); color:#fff; border-color: var(--brand-green); }
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      ${options.logoUrl ? `<img class="logo" src="${esc(options.logoUrl)}" alt="logo" />` : ""}
+      <div>
+        <h1>BlackBox Monitor – Reporte de Campaña</h1>
+        <div class="muted">Generado automáticamente</div>
+      </div>
+    </div>
 
-  // --------- Tabla de artículos ----------
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(13);
-  doc.text("Artículos Analizados", margin, topicsY + 16);
+    <div class="meta">
+      <dl>
+        ${meta.map(([k,v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}
+      </dl>
+    </div>
 
-  const rows = (Array.isArray(items) ? items : []).map((it, i) => {
-    const mini = it.llm?.summary || it.summary || it.snippet || "";
-    const url = it.url || it.link || "";
-    const src = it.source || it.site || "";
-    const when = fmtDate(it.pubDate || it.publishedAt);
-    const itemScorePct = toPercent(
-      typeof it.llm?.sentiment_score === "number"
-        ? it.llm.sentiment_score
-        : it.sentiment_score
-    );
-    return [
-      String(i + 1),
-      short(it.title || it.headline || "—", 80),
-      short(src, 30),
-      when,
-      itemScorePct != null ? itemScorePct + "%" : "",
-      short(mini, 120),
-      short(url, 40),
-    ];
-  });
+    <div class="block">
+      <h2>Resumen Ejecutivo</h2>
+      <div class="summary">${esc(summary || "Sin resumen disponible.")}</div>
+    </div>
 
-  doc.autoTable({
-    startY: topicsY + 26,
-    head: [["#", "Título", "Fuente", "Fecha", "Sent.", "Resumen", "URL"]],
-    body: rows,
-    styles: {
-      font: "helvetica",
-      fontSize: 9,
-      cellPadding: 4,
-      overflow: "linebreak",
-      valign: "top",
-    },
-    headStyles: {
-      fillColor: [34, 197, 94], // verde
-      textColor: 255,
-      halign: "left",
-    },
-    columnStyles: {
-      0: { cellWidth: 18 },
-      1: { cellWidth: 170 },
-      2: { cellWidth: 90 },
-      3: { cellWidth: 60 },
-      4: { cellWidth: 40, halign: "right" },
-      5: { cellWidth: 160 },
-      6: { cellWidth: 90 },
-    },
-    didParseCell(data) {
-      if (data.section === "body" && data.column.index === 6) {
-        data.cell.styles.textColor = [100, 116, 139]; // gris para URL
-      }
-    },
-  });
+    <div class="block">
+      <h2>Temas</h2>
+      <div class="chips">
+        ${Array.isArray(topics) && topics.length ? topics.map(t => `<span class="chip">${esc(t)}</span>`).join("") : `<span class="muted">Sin temas detectados</span>`}
+      </div>
+    </div>
 
-  doc.save(filename);
+    <div class="block">
+      <h2>Artículos Analizados</h2>
+      <table>
+        <thead>
+          <tr>
+            <th style="width:24px">#</th>
+            <th style="width:36%">Título</th>
+            <th style="width:14%">Fuente</th>
+            <th style="width:12%">Fecha</th>
+            <th style="width:10%">Sent.</th>
+            <th style="width:20%">Resumen</th>
+            <th style="width:8%">URL</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${
+            (Array.isArray(items) ? items : [])
+              .map((it, i) => {
+                const mini = it?.llm?.summary || it?.summary || it?.snippet || "";
+                const url = it?.url || it?.link || "";
+                const src = it?.source || it?.site || "";
+                const when = fmtDate(it?.pubDate || it?.publishedAt);
+                const itemScorePct = toPercent(
+                  typeof it?.llm?.sentiment_score === "number" ? it.llm.sentiment_score : it?.sentiment_score
+                );
+                return `
+                  <tr>
+                    <td>${i + 1}</td>
+                    <td>${esc(short(it?.title || it?.headline || "—", 120))}</td>
+                    <td>${esc(short(src, 40))}</td>
+                    <td>${esc(when)}</td>
+                    <td style="text-align:right">${itemScorePct != null ? itemScorePct + "%" : ""}</td>
+                    <td>${esc(short(mini, 200))}</td>
+                    <td>${url ? `<a class="url" href="${esc(url)}" target="_blank" rel="noreferrer">Abrir</a>` : ""}</td>
+                  </tr>
+                `;
+              })
+              .join("")
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <div class="actions no-print">
+      <button class="primary" onclick="window.print()">Imprimir / Guardar como PDF</button>
+      <button onclick="(function(){
+        const blob = new Blob([document.documentElement.outerHTML], {type: 'text/html;charset=utf-8'});
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = "${(options.filename || `Reporte_${name || 'campaña'}`).replace(/\s+/g,'_')}.html";
+        a.click();
+        setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
+      })()">Descargar HTML</button>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  // Abrimos nueva ventana y escribimos el HTML
+  const w = window.open("", "_blank");
+  if (!w) {
+    // Si el popup fue bloqueado, descargamos el HTML como archivo
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = (options.filename || `Reporte_${name || "campaña"}`).replace(/\s+/g, "_") + ".html";
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    return;
+  }
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
 }
 
 /**
- * Uso:
- * import { generateAnalysisPDF } from "@/lib/report";
- * <Button onClick={() => generateAnalysisPDF(analysisData, campaign, {
- *   logoUrl: "/logo.png",
- *   filename: `Reporte_${campaign.name}.pdf`
- * })}>
- *   Descargar PDF
- * </Button>
+ * API mínima para exportar CSV con artículos (opcional)
  */
+export function downloadArticlesCSV(analysis, filename = "articulos.csv") {
+  const items = Array.isArray(analysis?.items) ? analysis.items : [];
+  const headers = ["#", "titulo", "fuente", "fecha", "sentimiento%", "url"];
+  const rows = items.map((it, i) => {
+    const src = it?.source || it?.site || "";
+    const url = it?.url || it?.link || "";
+    const when = fmtDate(it?.pubDate || it?.publishedAt);
+    const pct = toPercent(
+      typeof it?.llm?.sentiment_score === "number" ? it.llm.sentiment_score : it?.sentiment_score
+    );
+    const title = (it?.title || it?.headline || "").replace(/"/g, '""');
+    return [i + 1, `"${title}"`, `"${src}"`, `"${when}"`, pct != null ? pct : "", `"${url}"`].join(",");
+  });
+
+  const csv = [headers.join(","), ...rows].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
