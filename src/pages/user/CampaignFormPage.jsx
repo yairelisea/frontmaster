@@ -1,93 +1,116 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { useToast } from '@/components/ui/use-toast';
-import { ArrowLeft, Save } from 'lucide-react';
-import { motion } from 'framer-motion';
+// src/pages/user/CampaignFormPage.jsx
+import React, { useState, useEffect } from "react";
+import { useNavigate, useParams, Link } from "react-router-dom";
+import {
+  Card, CardHeader, CardTitle, CardContent, CardDescription,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/components/ui/use-toast";
+import { ArrowLeft, Save } from "lucide-react";
+import { motion } from "framer-motion";
+import { createCampaign, analyzeCampaign } from "@/lib/api";
 
-// Mocked campaigns data for standalone page functionality
-const initialCampaigns = [
-  { id: 'CAMP001', name: 'Lanzamiento Tesla Cybertruck', target: 'Elon Musk', status: 'Activa', mentions: 12056, sentiment: 'Positivo (65%)', startDate: '2025-05-01', endDate: '2025-08-01', keywords: 'Cybertruck, Tesla, Elon Musk, pickup' },
-  { id: 'CAMP002', name: 'Impacto IA en el Empleo', target: 'Políticos clave', status: 'Pausada', mentions: 8530, sentiment: 'Neutral (45%)', startDate: '2025-04-15', endDate: '2025-07-15', keywords: 'IA, empleo, futuro del trabajo, automatización' },
-];
-
+function daysDiffClamp(start, end) {
+  try {
+    const s = new Date(start);
+    const e = new Date(end);
+    if (isNaN(s.getTime()) || isNaN(e.getTime())) return 14;
+    const ms = Math.max(1, Math.round((e - s) / (1000 * 60 * 60 * 24)));
+    return Math.min(Math.max(ms, 1), 60); // 1..60
+  } catch {
+    return 14;
+  }
+}
 
 const CampaignFormPage = () => {
-  const { campaignId } = useParams();
+  const { campaignId } = useParams(); // (por ahora no editamos; sólo creación)
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const [name, setName] = useState('');
-  const [target, setTarget] = useState('');
-  const [keywords, setKeywords] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [name, setName] = useState("");
+  const [target, setTarget] = useState("");
+  const [keywords, setKeywords] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
 
-  // This would typically come from a global state/context or API call
-  const [campaigns, setCampaigns] = useState(initialCampaigns); 
-
+  // Si vinieran params para editar, podrías precargar aquí
   useEffect(() => {
     if (campaignId) {
-      const existingCampaign = campaigns.find(c => c.id === campaignId);
-      if (existingCampaign) {
-        setName(existingCampaign.name || '');
-        setTarget(existingCampaign.target || '');
-        setKeywords(existingCampaign.keywords || '');
-        setStartDate(existingCampaign.startDate || '');
-        setEndDate(existingCampaign.endDate || '');
-        setIsEditing(true);
-      } else {
-        toast({ title: "Error", description: "Campaña no encontrada.", variant: "destructive" });
-        navigate('/user/campaigns');
-      }
-    } else {
-      setIsEditing(false);
-      // Reset form for new campaign
-      setName('');
-      setTarget('');
-      setKeywords('');
-      setStartDate('');
-      setEndDate('');
+      // future: GET /campaigns/:id y setear campos
     }
-  }, [campaignId, campaigns, navigate, toast]);
+  }, [campaignId]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setIsLoading(true);
-    if (!name || !target || !keywords || !startDate || !endDate) {
-      toast({ title: "Error", description: "Todos los campos son requeridos.", variant: "destructive" });
-      setIsLoading(false);
+    if (isLoading) return;
+
+    if (!name || !target) {
+      toast({
+        title: "Faltan datos",
+        description: "Nombre de campaña y Personaje/Entidad son obligatorios.",
+        variant: "destructive",
+      });
       return;
     }
 
-    const campaignData = { 
-      name, 
-      target, 
-      keywords, 
-      startDate, 
-      endDate,
+    setIsLoading(true);
+
+    // Mapear a payload del backend
+    const city_keywords = keywords
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const days_back = startDate && endDate ? daysDiffClamp(startDate, endDate) : 14;
+
+    const payload = {
+      name,
+      query: target,      // lo que se buscará en noticias
+      size: 25,
+      days_back,
+      lang: "es-419",
+      country: "MX",
+      city_keywords: city_keywords.length ? city_keywords : null,
     };
 
-    // Simulate API call
-    setTimeout(() => {
-      if (isEditing) {
-        // Update existing campaign (locally for now)
-        setCampaigns(prev => prev.map(c => c.id === campaignId ? { ...c, ...campaignData } : c));
-        toast({ title: "Campaña Actualizada", description: `La campaña "${campaignData.name}" ha sido actualizada.`, className: "bg-brand-green text-white" });
-      } else {
-        // Create new campaign (locally for now)
-        const newCampaign = { ...campaignData, id: `CAMP${String(campaigns.length + 1).padStart(3, '0')}`, status: 'Activa', mentions: 0, sentiment: 'Neutral (50%)' };
-        setCampaigns(prev => [newCampaign, ...prev]);
-        toast({ title: "Campaña Creada", description: `La campaña "${newCampaign.name}" ha sido creada.`, className: "bg-brand-green text-white" });
+    try {
+      // 1) Crear campaña
+      const created = await createCampaign(payload);
+
+      toast({
+        title: "Campaña creada",
+        description: `“${created.name}” creada correctamente. Ejecutando análisis IA…`,
+        className: "bg-brand-green text-white",
+      });
+
+      // 2) Lanzar análisis IA inmediatamente
+      let analysis = null;
+      try {
+        analysis = await analyzeCampaign(created);
+      } catch (err) {
+        // Si falla el análisis, igual redirigimos con el error para mostrarlo
+        analysis = { _error: err?.message || "No se pudo completar el análisis." };
       }
+
+      // 3) Redirigir a /user/campaigns mostrando resultados
+      navigate("/user/campaigns", {
+        replace: true,
+        state: {
+          showAnalysisFor: created,   // campaña recién creada
+          analysisData: analysis,     // resultados o error
+        },
+      });
+    } catch (err) {
+      toast({
+        title: "No se pudo crear la campaña",
+        description: err?.message || "Intenta nuevamente.",
+        variant: "destructive",
+      });
+    } finally {
       setIsLoading(false);
-      navigate('/user/campaigns');
-    }, 1000);
+    }
   };
 
   return (
@@ -101,10 +124,10 @@ const CampaignFormPage = () => {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
-                {isEditing ? 'Editar Campaña' : 'Crear Nueva Campaña'}
+                Crear Nueva Campaña
               </CardTitle>
               <CardDescription className="text-sm text-muted-foreground">
-                {isEditing ? 'Modifica los detalles de tu campaña.' : 'Define los parámetros para tu nueva campaña de monitoreo.'}
+                Define los parámetros para tu nueva campaña de monitoreo.
               </CardDescription>
             </div>
             <Link to="/user/campaigns">
@@ -114,38 +137,94 @@ const CampaignFormPage = () => {
             </Link>
           </div>
         </CardHeader>
+
         <CardContent className="p-4 md:p-6">
           <form onSubmit={handleSubmit} className="space-y-6 max-w-2xl mx-auto">
             <div>
-              <Label htmlFor="campaignName-page" className="font-semibold">Nombre de la Campaña</Label>
-              <Input id="campaignName-page" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej. Monitoreo Elecciones 2025" className="mt-1 focus-visible:ring-brand-green"/>
+              <Label htmlFor="campaignName" className="font-semibold">
+                Nombre de la Campaña
+              </Label>
+              <Input
+                id="campaignName"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Ej. Monitoreo Elecciones 2025"
+                className="mt-1 focus-visible:ring-brand-green"
+                required
+              />
             </div>
+
             <div>
-              <Label htmlFor="campaignTarget-page" className="font-semibold">Personaje / Entidad a Monitorear</Label>
-              <Input id="campaignTarget-page" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="Ej. Candidato X, Empresa Y" className="mt-1 focus-visible:ring-brand-green"/>
+              <Label htmlFor="campaignTarget" className="font-semibold">
+                Personaje / Entidad a Monitorear
+              </Label>
+              <Input
+                id="campaignTarget"
+                value={target}
+                onChange={(e) => setTarget(e.target.value)}
+                placeholder="Ej. Candidato X, Empresa Y"
+                className="mt-1 focus-visible:ring-brand-green"
+                required
+              />
             </div>
+
             <div>
-              <Label htmlFor="campaignKeywords-page" className="font-semibold">Palabras Clave (separadas por coma)</Label>
-              <Input id="campaignKeywords-page" value={keywords} onChange={(e) => setKeywords(e.target.value)} placeholder="Ej. innovación, tecnología, futuro" className="mt-1 focus-visible:ring-brand-green"/>
+              <Label htmlFor="campaignKeywords" className="font-semibold">
+                Palabras Clave (separadas por coma)
+              </Label>
+              <Input
+                id="campaignKeywords"
+                value={keywords}
+                onChange={(e) => setKeywords(e.target.value)}
+                placeholder="Ej. municipio, cargo, zona"
+                className="mt-1 focus-visible:ring-brand-green"
+              />
             </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <Label htmlFor="startDate-page" className="font-semibold">Fecha de Inicio</Label>
-                <Input id="startDate-page" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="mt-1 focus-visible:ring-brand-green"/>
+                <Label htmlFor="startDate" className="font-semibold">
+                  Fecha de Inicio (opcional)
+                </Label>
+                <Input
+                  id="startDate"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="mt-1 focus-visible:ring-brand-green"
+                />
               </div>
               <div>
-                <Label htmlFor="endDate-page" className="font-semibold">Fecha de Fin</Label>
-                <Input id="endDate-page" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="mt-1 focus-visible:ring-brand-green"/>
+                <Label htmlFor="endDate" className="font-semibold">
+                  Fecha de Fin (opcional)
+                </Label>
+                <Input
+                  id="endDate"
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="mt-1 focus-visible:ring-brand-green"
+                />
               </div>
             </div>
+
             <div className="flex justify-end pt-4">
-              <Button type="submit" className="bg-brand-green hover:bg-brand-green/90 text-primary-foreground px-8 py-3 text-base" disabled={isLoading}>
+              <Button
+                type="submit"
+                className="bg-brand-green hover:bg-brand-green/90 text-primary-foreground px-8 py-3 text-base"
+                disabled={isLoading}
+              >
                 {isLoading ? (
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                  <>
+                    <span className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2" />
+                    Creando y Analizando…
+                  </>
                 ) : (
-                  <Save className="mr-2 h-5 w-5" />
+                  <>
+                    <Save className="mr-2 h-5 w-5" />
+                    Crear y Analizar IA
+                  </>
                 )}
-                {isLoading ? (isEditing ? 'Guardando...' : 'Creando...') : (isEditing ? 'Guardar Cambios' : 'Crear Campaña')}
               </Button>
             </div>
           </form>
