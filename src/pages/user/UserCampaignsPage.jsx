@@ -9,7 +9,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { CampaignTable } from '@/components/user/campaigns/CampaignTable';
 import { Link, useLocation } from 'react-router-dom';
 import { fetchCampaigns, analyzeCampaign } from '@/lib/api';
-import { generateAnalysisPDF as generatePDF } from '@/lib/report';
+import { generatePDF } from '@/lib/report';
 
 const UserCampaignsPage = () => {
   const { toast } = useToast();
