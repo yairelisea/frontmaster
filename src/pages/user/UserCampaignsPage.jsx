@@ -252,6 +252,11 @@ const UserCampaignsPage = () => {
       a.remove();
       URL.revokeObjectURL(url);
 
+      // Abrir vista previa de impresión como opción adicional
+      if (window.report && typeof window.report.openPrintPreview === 'function') {
+        window.report.openPrintPreview({ campaign: analysisCampaign, analysis: analysisData });
+      }
+
       toast({
         title: 'PDF generado',
         description: 'El reporte se ha descargado correctamente.',
@@ -259,6 +264,10 @@ const UserCampaignsPage = () => {
       });
     } catch (e) {
       console.error('PDF export error:', e);
+      // Fallback a vista previa de impresión si falla el backend
+      if (window.report && typeof window.report.openPrintPreview === 'function') {
+        window.report.openPrintPreview({ campaign: analysisCampaign, analysis: analysisData });
+      }
       const msg = e?.message || 'Inténtalo nuevamente.';
       toast({
         title: 'No se pudo generar el PDF',
