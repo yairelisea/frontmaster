@@ -9,7 +9,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { CampaignTable } from '@/components/user/campaigns/CampaignTable';
 import { Link, useLocation } from 'react-router-dom';
 import { fetchCampaigns, analyzeCampaign } from '@/lib/api';
-import { downloadAnalysisPDF as generatePDF } from '@/lib/report';
+import * as report from '@/lib/report';
 
 const UserCampaignsPage = () => {
   const { toast } = useToast();
@@ -106,7 +106,14 @@ const UserCampaignsPage = () => {
   async function handleExportPDF() {
     try {
       if (!analysisCampaign || !analysisData) return;
-      await generatePDF({
+      const fn =
+        report.downloadAnalysisPDF ||
+        report.generateAnalysisPDF ||
+        report.generatePDF; // fallback if you exported a generic name
+      if (typeof fn !== 'function') {
+        throw new Error('No PDF generator export found in lib/report.js');
+      }
+      await fn({
         campaign: analysisCampaign,
         analysis: analysisData,
       });
