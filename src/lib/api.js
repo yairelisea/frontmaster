@@ -479,3 +479,44 @@ export const api = {
     return { data: await handle(resp) };
   },
 };
+
+// ========= PDF Report Client =========
+/**
+ * Solicita el PDF del análisis al backend (/ai/report) y devuelve un Blob.
+ * Parámetros similares a analyzeNews.
+ */
+export async function requestAnalysisPDF({
+  q,
+  size = 25,
+  days_back = 14,
+  overall = true,
+  lang = "es-419",
+  country = "MX",
+}) {
+  if (!API) throw new Error("VITE_API_URL no está definido");
+
+  const params = new URLSearchParams({
+    q,
+    size: String(size),
+    days_back: String(days_back),
+    overall: String(overall),
+    lang,
+    country,
+  });
+
+  const res = await fetch(`${API}/ai/report?${params.toString()}`, withHeaders({
+    method: "GET",
+  }));
+
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`PDF request failed: ${res.status} ${txt}`);
+  }
+
+  const blob = await res.blob();
+  if (blob.type !== "application/pdf") {
+    throw new Error("Respuesta no es un PDF válido");
+  }
+
+  return blob;
+}

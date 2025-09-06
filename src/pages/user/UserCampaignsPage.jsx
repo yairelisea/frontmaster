@@ -8,8 +8,7 @@ import { motion } from 'framer-motion';
 import { useToast } from '@/components/ui/use-toast';
 import { CampaignTable } from '@/components/user/campaigns/CampaignTable';
 import { Link, useLocation } from 'react-router-dom';
-import { fetchCampaigns, analyzeCampaign } from '@/lib/api';
-import * as report from '@/lib/report';
+import { fetchCampaigns, analyzeCampaign, requestAnalysisPDF } from '@/lib/api';
 
 const UserCampaignsPage = () => {
   const { toast } = useToast();
@@ -23,7 +22,7 @@ const UserCampaignsPage = () => {
   // Estado para análisis IA
   const [analyzingId, setAnalyzingId] = useState(null);
   const [analysisError, setAnalysisError] = useState(location.state?.analysisError || null);
-  const [analysisData, setAnalysisData] = useState(location.state?.analysisData || null); // normalizado: { summary, sentiment_label, sentiment_score, topics, items, raw }
+  const [analysisData, setAnalysisData] = useState(location.state?.analysisData || null); // normalizado: { summary, sentiment_label, sentiment_score(_pct), topics, items, raw }
   const [analysisCampaign, setAnalysisCampaign] = useState(location.state?.showAnalysisFor || null);
 
   // ---- Cache helpers (localStorage) ----
@@ -34,7 +33,6 @@ const UserCampaignsPage = () => {
       const raw = localStorage.getItem(`${CACHE_PREFIX}${camp.id}`);
       if (!raw) return null;
       const parsed = JSON.parse(raw);
-      // optional: expire check in future
       return parsed;
     } catch {
       return null;
@@ -48,6 +46,7 @@ const UserCampaignsPage = () => {
   }
 
   useEffect(() => {
+    // limpia el state de navegación para no re-rehidratar a cada render
     if (location.state) {
       window.history.replaceState({}, document.title);
     }
@@ -75,7 +74,7 @@ const UserCampaignsPage = () => {
     loadCampaigns();
   }, []);
 
-  // Helpers de presentación para sentimiento y recortes
+  // Helpers de presentación
   const toPercent0to100 = (score, pct) => {
     if (typeof pct === 'number') return Math.round(pct);
     if (typeof score === 'number') return Math.round(((score + 1) / 2) * 100); // -1..1 -> 0..100
@@ -106,7 +105,7 @@ const UserCampaignsPage = () => {
     try {
       const res = await analyzeCampaign(campaign);
       setAnalysisData(res);
-      // cache it for "Ver más"
+      // cache para "Ver más"
       saveCachedAnalysis(campaign, res);
       toast({
         title: 'Análisis completado',
@@ -141,7 +140,7 @@ const UserCampaignsPage = () => {
       });
       return;
     }
-    // 2) si no hay cache, opcionalmente dispara un análisis o avisa
+    // 2) si no hay cache, ejecuta un análisis ahora
     setAnalysisData(null);
     toast({
       title: 'Sin resultados guardados',
@@ -164,22 +163,75 @@ const UserCampaignsPage = () => {
     }
   }
 
+  // Exportar PDF (vía backend /ai/report)
   async function handleExportPDF() {
     try {
       if (!analysisCampaign || !analysisData) return;
-      const fn =
-        report.downloadAnalysisPDF ||
-        report.generateAnalysisPDF ||
-        report.generatePDF; // fallback if you exported a generic name
-      if (typeof fn !== 'function') {
-        throw new Error('No PDF generator export found in lib/report.js');
-      }
-      await fn({
-        campaign: analysisCampaign,
-        analysis: analysisData,
+
+      // Empaquetar datos para el backend
+      const q = analysisCampaign.query;
+      const size = analysisCampaign.size ?? 25;
+      const days_back = analysisCampaign.days_back ?? 14;
+      const lang = analysisCampaign.lang ?? 'es-419';
+      const country = analysisCampaign.country ?? 'MX';
+
+      // Aseguramos shape de items (con % y resumen corto)
+      const items = (analysisData.items || []).map((it) => {
+        const lbl = it.llm?.sentiment_label ?? it.sentiment_label ?? null;
+        const pct = toPercent0to100(it.llm?.sentiment_score, it.llm?.sentiment_score_pct ?? it.sentiment_percent);
+        const summary = it.llm?.summary ?? it.summary ?? '';
+        return {
+          title: it.title || it.headline || '',
+          url: it.url || it.link || '',
+          source: it.source || it.outlet || '',
+          summary,
+          sentiment_label: lbl,
+          sentiment_percent: typeof pct === 'number' ? pct : null,
+        };
+      });
+
+      const topics = analysisData.topics || analysisData.temas || [];
+
+      // Solicitar PDF al backend
+      const blob = await requestAnalysisPDF({
+        q,
+        size,
+        days_back,
+        lang,
+        country,
+        summary: analysisData.summary ?? null,
+        sentiment_label: analysisData.sentiment_label ?? null,
+        sentiment_percent: toPercent0to100(
+          analysisData.sentiment_score,
+          analysisData.sentiment_score_pct ?? analysisData.sentiment_percent
+        ),
+        topics,
+        items,
+      });
+
+      // Descargar
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const safeName = (analysisCampaign.name || 'reporte').replace(/[^\w\s-]/g, '').replace(/\s+/g, '_');
+      a.href = url;
+      a.download = `${safeName}_${new Date().toISOString().slice(0, 10)}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: 'PDF generado',
+        description: 'El reporte se ha descargado correctamente.',
+        className: 'bg-brand-green text-white',
       });
     } catch (e) {
       console.error('PDF export error:', e);
+      toast({
+        title: 'No se pudo generar el PDF',
+        description: e?.message || 'Inténtalo nuevamente.',
+        variant: 'destructive',
+      });
     }
   }
 
@@ -314,8 +366,11 @@ const UserCampaignsPage = () => {
                             {it.title || it.headline || `Nota ${idx + 1}`}
                           </div>
                           {(() => {
-                            const lbl = it.llm?.sentiment_label;
-                            const pct = toPercent0to100(it.llm?.sentiment_score, it.llm?.sentiment_score_pct);
+                            const lbl = it.llm?.sentiment_label ?? it.sentiment_label;
+                            const pct = toPercent0to100(
+                              it.llm?.sentiment_score ?? it.sentiment_score,
+                              it.llm?.sentiment_score_pct ?? it.sentiment_percent
+                            );
                             if (!lbl && typeof pct !== 'number') return null;
                             return (
                               <div className="text-xs text-muted-foreground">
