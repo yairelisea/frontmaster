@@ -24,6 +24,7 @@ const UserCampaignsPage = () => {
   const [analysisError, setAnalysisError] = useState(location.state?.analysisError || null);
   const [analysisData, setAnalysisData] = useState(location.state?.analysisData || null); // normalizado: { summary, sentiment_label, sentiment_score(_pct), topics, items, raw }
   const [analysisCampaign, setAnalysisCampaign] = useState(location.state?.showAnalysisFor || null);
+  const [exporting, setExporting] = useState(false);
 
   // ---- Cache helpers (localStorage) ----
   const CACHE_PREFIX = 'bbx:analysis:'; // bbx:analysis:<campaignId>
@@ -76,9 +77,11 @@ const UserCampaignsPage = () => {
 
   // Helpers de presentación
   const toPercent0to100 = (score, pct) => {
-    if (typeof pct === 'number') return Math.round(pct);
-    if (typeof score === 'number') return Math.round(((score + 1) / 2) * 100); // -1..1 -> 0..100
-    return null;
+    const fromPct = typeof pct === 'number' ? pct : null;
+    const fromScore = typeof score === 'number' ? ((score + 1) / 2) * 100 : null; // -1..1 -> 0..100
+    const val = fromPct ?? fromScore;
+    if (typeof val !== 'number' || Number.isNaN(val)) return null;
+    return Math.max(0, Math.min(100, Math.round(val)));
   };
   const clip = (str, n = 220) => {
     if (!str || typeof str !== 'string') return '';
@@ -166,6 +169,7 @@ const UserCampaignsPage = () => {
   // Exportar PDF (vía backend /ai/report)
   async function handleExportPDF() {
     try {
+      setExporting(true);
       if (!analysisCampaign || !analysisData) return;
 
       // Empaquetar datos para el backend
@@ -212,7 +216,12 @@ const UserCampaignsPage = () => {
       // Descargar
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      const safeName = (analysisCampaign.name || 'reporte').replace(/[^\w\s-]/g, '').replace(/\s+/g, '_');
+      const safeName = String(analysisCampaign.name || 'reporte')
+        .normalize('NFKD')
+        .replace(/[^\w\s.-]/g, '')
+        .trim()
+        .replace(/\s+/g, '_')
+        .slice(0, 80);
       a.href = url;
       a.download = `${safeName}_${new Date().toISOString().slice(0, 10)}.pdf`;
       document.body.appendChild(a);
@@ -227,11 +236,14 @@ const UserCampaignsPage = () => {
       });
     } catch (e) {
       console.error('PDF export error:', e);
+      const msg = e?.message || 'Inténtalo nuevamente.';
       toast({
         title: 'No se pudo generar el PDF',
-        description: e?.message || 'Inténtalo nuevamente.',
+        description: msg.length > 200 ? msg.slice(0, 197) + '…' : msg,
         variant: 'destructive',
       });
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -302,9 +314,10 @@ const UserCampaignsPage = () => {
             {analysisData ? (
               <Button
                 onClick={handleExportPDF}
+                disabled={exporting}
                 className="bg-brand-green hover:bg-brand-green/90 text-primary-foreground"
               >
-                Exportar PDF
+                {exporting ? 'Generando…' : 'Exportar PDF'}
               </Button>
             ) : null}
           </CardHeader>
