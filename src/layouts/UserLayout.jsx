@@ -9,7 +9,8 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from '@/components/ui/dropdown-menu';
-
+import { useAuth } from "@/context/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 const UserSidebarNavLink = ({ to, icon: Icon, children, onClick }) => (
   <NavLink
@@ -36,7 +37,7 @@ const UserSidebarNavLink = ({ to, icon: Icon, children, onClick }) => (
   </NavLink>
 );
 
-const UserSidebarContent = ({ isOpen, toggleSidebar }) => {
+const UserSidebarContent = ({ isOpen, toggleSidebar, onLogout }) => {
   const logoUrl = "https://storage.googleapis.com/hostinger-horizons-assets-prod/9ebf8f0b-cde8-498c-9fdd-b05fe177914b/a1d5c6f61f6fb2061a4a88537284d3ff.png";
   const navItems = [
     { to: '/user/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -76,9 +77,14 @@ const UserSidebarContent = ({ isOpen, toggleSidebar }) => {
         <UserSidebarNavLink to="/user/settings" icon={Settings} onClick={toggleSidebar ? toggleSidebar : undefined}>
           Configuración
         </UserSidebarNavLink>
-         <UserSidebarNavLink to="/auth/login" icon={LogOut} onClick={toggleSidebar ? toggleSidebar : undefined}>
+        <button
+          type="button"
+          onClick={(e) => { onLogout?.(e); if (toggleSidebar) toggleSidebar(); }}
+          className="mt-1 w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg text-left transition-colors duration-150 ease-in-out text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+        >
+          <LogOut className="mr-3 h-5 w-5 text-gray-500 group-hover:text-brand-green" />
           Cerrar Sesión
-        </UserSidebarNavLink>
+        </button>
         <p className="text-xs text-muted-foreground text-center pt-4">&copy; {new Date().getFullYear()} BLACKBOX MONITOR</p>
       </div>
     </div>
@@ -90,11 +96,20 @@ const UserLayout = () => {
   const location = useLocation();
 
   const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
+  const { logout } = useAuth();
+
+  const navigate = useNavigate();
+
+function handleLogout(e) {
+  e?.preventDefault?.();
+  logout();                  // limpia token y usuario
+  navigate("/auth/login", { replace: true });
+}
 
   return (
     <div className="flex h-screen bg-background">
       <div className="hidden lg:block w-64">
-        <UserSidebarContent isOpen={true} />
+        <UserSidebarContent isOpen={true} onLogout={handleLogout} />
       </div>
 
       <div className="lg:hidden">
@@ -103,7 +118,7 @@ const UserLayout = () => {
             {/* Button is in header */}
           </SheetTrigger>
           <SheetContent side="left" className="p-0 w-72 bg-card border-r-0 z-50">
-             <UserSidebarContent isOpen={sidebarOpen} toggleSidebar={toggleSidebar} />
+             <UserSidebarContent isOpen={sidebarOpen} toggleSidebar={toggleSidebar} onLogout={handleLogout} />
           </SheetContent>
         </Sheet>
       </div>
@@ -148,11 +163,9 @@ const UserLayout = () => {
                       <span>Configuración</span>
                     </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link to="/auth/login">
-                      <LogOut className="mr-2 h-4 w-4" />
-                      <span>Cerrar sesión</span>
-                    </Link>
+                  <DropdownMenuItem onClick={handleLogout}>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    <span>Cerrar sesión</span>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
