@@ -346,6 +346,119 @@ export async function analyzeCampaign(campaign) {
   });
 }
 
+// ========= Analysis Cache (localStorage) =========
+// Guarda/lee resultados de análisis para no re-disparar IA si ya existe.
+// Clave determinística en función de los parámetros.
+const ANALYSIS_CACHE_KEY = "bbx_analysis_cache_v1";
+
+/**
+ * Construye una clave de caché determinística para un análisis.
+ * Acepta un objeto con { q, size, days_back, lang, country } o una campaña.
+ */
+export function makeAnalysisCacheKey(input) {
+  try {
+    if (!input) return null;
+    // Si viene campaña
+    if (input.query) {
+      const q = String(input.query || "").trim().toLowerCase();
+      const size = Number(input.size ?? 25);
+      const days_back = Number(input.days_back ?? 14);
+      const lang = String(input.lang ?? "es-419");
+      const country = String(input.country ?? "MX");
+      return `q=${q}|size=${size}|db=${days_back}|lang=${lang}|ctry=${country}`;
+    }
+    // Si viene shape de analyzeNews
+    const q = String(input.q || "").trim().toLowerCase();
+    const size = Number(input.size ?? 25);
+    const days_back = Number(input.days_back ?? 14);
+    const lang = String(input.lang ?? "es-419");
+    const country = String(input.country ?? "MX");
+    if (!q) return null;
+    return `q=${q}|size=${size}|db=${days_back}|lang=${lang}|ctry=${country}`;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Lee todo el mapa de caché desde localStorage.
+ */
+function _readCacheMap() {
+  try {
+    const raw = localStorage.getItem(ANALYSIS_CACHE_KEY);
+    if (!raw) return {};
+    const data = JSON.parse(raw);
+    return typeof data === "object" && data ? data : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Persiste el mapa de caché completo.
+ */
+function _writeCacheMap(map) {
+  try {
+    localStorage.setItem(ANALYSIS_CACHE_KEY, JSON.stringify(map));
+  } catch {
+    // ignore quota / privacy mode
+  }
+}
+
+/**
+ * Guarda un resultado en caché. Opcionalmente incluye metadatos.
+ * meta recomendado: { savedAt: Date.now(), campaignId, campaignName }
+ */
+export function saveAnalysisCache(key, value, meta = {}) {
+  if (!key) return;
+  const map = _readCacheMap();
+  map[key] = {
+    data: value,
+    meta: { savedAt: Date.now(), ...meta },
+  };
+  _writeCacheMap(map);
+}
+
+/**
+ * Carga un resultado desde caché. Si maxAgeMs &gt; 0, valida vigencia.
+ * Devuelve { data, meta } o null si no existe / expiró.
+ */
+export function loadAnalysisCache(key, maxAgeMs = 0) {
+  if (!key) return null;
+  const map = _readCacheMap();
+  const entry = map[key];
+  if (!entry) return null;
+  if (maxAgeMs > 0) {
+    const savedAt = entry?.meta?.savedAt ?? 0;
+    if (!savedAt || Date.now() - savedAt > maxAgeMs) {
+      return null;
+    }
+  }
+  return entry;
+}
+
+/**
+ * Borra una entrada específica o toda la caché.
+ */
+export function clearAnalysisCache(key = null) {
+  if (!key) {
+    try { localStorage.removeItem(ANALYSIS_CACHE_KEY); } catch {}
+    return;
+  }
+  const map = _readCacheMap();
+  if (map[key]) {
+    delete map[key];
+    _writeCacheMap(map);
+  }
+}
+
+/**
+ * Helper: devuelve una clave de caché directamente desde una campaña.
+ */
+export function cacheKeyForCampaign(campaign) {
+  return makeAnalysisCacheKey(campaign);
+}
+
 // ========= Cliente simple (get/post/put/delete) por si lo usas en otros lados =========
 export const api = {
   async get(path, { params } = {}) {

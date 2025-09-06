@@ -16,6 +16,7 @@ import { motion, AnimatePresence } from "framer-motion";
  * campaigns: array de campañas del backend
  * allCampaignsCount: total de campañas
  * onAnalyze(campaign): callback para lanzar análisis IA
+ * onView(campaign): callback para mostrar detalles / análisis guardado
  * analyzingId: string | null => id de campaña que está analizando
  * onEdit, onToggleStatus, onDelete, onOpenNewForm: opcionales (puedes omitirlos)
  */
@@ -23,6 +24,7 @@ export const CampaignTable = ({
   campaigns = [],
   allCampaignsCount = 0,
   onAnalyze,
+  onView,
   analyzingId,
   onEdit,
   onToggleStatus,
@@ -40,6 +42,7 @@ export const CampaignTable = ({
               <TableHead>Consulta</TableHead>
               <TableHead>País</TableHead>
               <TableHead>Idioma</TableHead>
+
               <TableHead>Resultados</TableHead>
               <TableHead>Días atrás</TableHead>
               <TableHead className="text-right">Acciones</TableHead>
@@ -101,8 +104,11 @@ export const CampaignTable = ({
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuLabel>Opciones</DropdownMenuLabel>
-                              <DropdownMenuItem onClick={() => {/* navegar a detalle en futuro */}}>
-                                <Eye className="mr-2 h-4 w-4" /> Ver Detalles
+                              <DropdownMenuItem
+                                onClick={() => onView && onView(c)}
+                                title="Ver más (usa análisis en caché si existe)"
+                              >
+                                <Eye className="mr-2 h-4 w-4" /> Ver más
                               </DropdownMenuItem>
                               {onEdit && (
                                 <DropdownMenuItem onClick={() => onEdit(c)}>

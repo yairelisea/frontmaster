@@ -26,6 +26,27 @@ const UserCampaignsPage = () => {
   const [analysisData, setAnalysisData] = useState(location.state?.analysisData || null); // normalizado: { summary, sentiment_label, sentiment_score, topics, items, raw }
   const [analysisCampaign, setAnalysisCampaign] = useState(location.state?.showAnalysisFor || null);
 
+  // ---- Cache helpers (localStorage) ----
+  const CACHE_PREFIX = 'bbx:analysis:'; // bbx:analysis:<campaignId>
+
+  function loadCachedAnalysis(camp) {
+    try {
+      const raw = localStorage.getItem(`${CACHE_PREFIX}${camp.id}`);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      // optional: expire check in future
+      return parsed;
+    } catch {
+      return null;
+    }
+  }
+
+  function saveCachedAnalysis(camp, data) {
+    try {
+      localStorage.setItem(`${CACHE_PREFIX}${camp.id}`, JSON.stringify(data));
+    } catch {}
+  }
+
   useEffect(() => {
     if (location.state) {
       window.history.replaceState({}, document.title);
@@ -85,6 +106,8 @@ const UserCampaignsPage = () => {
     try {
       const res = await analyzeCampaign(campaign);
       setAnalysisData(res);
+      // cache it for "Ver más"
+      saveCachedAnalysis(campaign, res);
       toast({
         title: 'Análisis completado',
         description: `Se analizó "${campaign.name}"`,
@@ -98,6 +121,44 @@ const UserCampaignsPage = () => {
         description: err?.message || 'No se pudo completar el análisis.',
         variant: 'destructive',
       });
+    } finally {
+      setAnalyzingId(null);
+    }
+  }
+
+  // Mostrar resultados ya generados sin volver a analizar
+  async function handleView(campaign) {
+    setAnalysisCampaign(campaign);
+    setAnalysisError(null);
+    // 1) intenta cache local
+    const cached = loadCachedAnalysis(campaign);
+    if (cached) {
+      setAnalysisData(cached);
+      toast({
+        title: 'Análisis cargado',
+        description: `Mostrando resultados guardados de “${campaign.name}”.`,
+        className: 'bg-brand-green text-white',
+      });
+      return;
+    }
+    // 2) si no hay cache, opcionalmente dispara un análisis o avisa
+    setAnalysisData(null);
+    toast({
+      title: 'Sin resultados guardados',
+      description: 'No encontramos resultados previos. Ejecutando análisis ahora…',
+    });
+    try {
+      setAnalyzingId(campaign.id);
+      const res = await analyzeCampaign(campaign);
+      setAnalysisData(res);
+      saveCachedAnalysis(campaign, res);
+      toast({
+        title: 'Análisis completado',
+        description: `Se analizó “${campaign.name}”.`,
+        className: 'bg-brand-green text-white',
+      });
+    } catch (err) {
+      setAnalysisError(err?.message || 'No se pudo completar el análisis.');
     } finally {
       setAnalyzingId(null);
     }
@@ -166,8 +227,9 @@ const UserCampaignsPage = () => {
               campaigns={filteredCampaigns}
               allCampaignsCount={campaigns.length}
               onAnalyze={handleAnalyze}
+              onView={handleView}          // por si la tabla usa onView
+              onViewMore={handleView}      // o por si la tabla usa onViewMore
               analyzingId={analyzingId}
-              // Puedes pasar onEdit / onDelete cuando estén listos
             />
           )}
         </CardContent>
@@ -230,7 +292,7 @@ const UserCampaignsPage = () => {
                 {/* Tópicos */}
                 {Array.isArray(analysisData.topics) && analysisData.topics.length > 0 && (
                   <div>
-                    <div className="text-xs text-muted-foreground mb-1">Tópicos</div>
+                    <div className="text-xs text-muted-foreground mb-1">Temas Relevantes</div>
                     <div className="flex flex-wrap gap-2">
                       {analysisData.topics.map((t, i) => (
                         <span key={i} className="text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200">
