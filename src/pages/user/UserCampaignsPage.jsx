@@ -184,28 +184,14 @@ const UserCampaignsPage = () => {
 
     try {
       setExporting(true);
-
       // Base URL del backend (sin slash final)
       const API = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
-
-      // Params básicos del reporte (los mismos que usamos para analizar)
-      const q = analysisCampaign.query || analysisCampaign.name || '';
-      const size = analysisCampaign.size ?? 25;
-      const days_back = analysisCampaign.days_back ?? 14;
-      const lang = analysisCampaign.lang ?? 'es-419';
-      const country = analysisCampaign.country ?? 'MX';
-
-      const params = new URLSearchParams({
-        q,
-        size: String(size),
-        days_back: String(days_back),
-        overall: 'true',
-        lang,
-        country,
-      });
-
-      const url = `${API}/ai/report?${params.toString()}`;
-
+      // Construir endpoint correcto: /reports/pdf/{campaign_id}
+      const campaignId = analysisCampaign.id;
+      if (!campaignId) {
+        throw new Error('ID de campaña no encontrado.');
+      }
+      const url = `${API}/reports/pdf/${encodeURIComponent(campaignId)}`;
       // Headers: intentamos enviar Authorization si existe
       const headers = new Headers();
       const token = localStorage.getItem('auth_token');
@@ -216,8 +202,12 @@ const UserCampaignsPage = () => {
 
       const resp = await fetch(url, { method: 'GET', headers });
       if (!resp.ok) {
-        const text = await resp.text();
-        throw new Error(`PDF request failed: ${resp.status} ${text}`);
+        let errorMsg = `PDF request failed: ${resp.status}`;
+        try {
+          const text = await resp.text();
+          errorMsg += ` ${text}`;
+        } catch {}
+        throw new Error(errorMsg);
       }
 
       const blob = await resp.blob();
