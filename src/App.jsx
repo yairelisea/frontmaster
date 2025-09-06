@@ -1,9 +1,6 @@
 // src/App.jsx
 import React from "react";
-import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from "react-router-dom";
-
-// Contexto de auth (usa el que ya tienes)
-import { useAuth } from "@/context/AuthContext";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 
 // Layouts
 import AdminLayout from "@/layouts/AdminLayout";
@@ -34,89 +31,86 @@ import LoginPage from "@/pages/auth/LoginPage";
 import RegisterPage from "@/pages/auth/RegisterPage";
 
 import { Toaster } from "@/components/ui/toaster";
+import { useAuth } from "@/context/AuthContext";
 
-/* ---------- Guards ---------- */
-function PrivateRoute() {
+// Rutas protegidas: solo dejan pasar si hay sesión
+const ProtectedRoute = ({ children }) => {
   const { isAuthenticated } = useAuth();
   if (!isAuthenticated) return <Navigate to="/auth/login" replace />;
-  return <Outlet />;
-}
+  return children;
+};
 
-function PublicOnlyRoute() {
+// (Opcional) Solo invitados: si ya hay sesión, vete al dashboard
+const GuestRoute = ({ children }) => {
   const { isAuthenticated } = useAuth();
   if (isAuthenticated) return <Navigate to="/user/dashboard" replace />;
-  return <Outlet />;
-}
+  return children;
+};
 
 function App() {
-  const { isAuthenticated } = useAuth();
-
   return (
     <Router>
       <Toaster />
       <Routes>
-        {/* Root: decide según sesión */}
+        {/* Root -> Login */}
+        <Route path="/" element={<Navigate to="/auth/login" replace />} />
+
+        {/* Auth */}
         <Route
-          path="/"
+          path="/auth"
           element={
-            isAuthenticated ? (
-              <Navigate to="/user/dashboard" replace />
-            ) : (
-              <Navigate to="/auth/login" replace />
-            )
+            <GuestRoute>
+              <AuthLayout />
+            </GuestRoute>
           }
-        />
-
-        {/* Auth (solo si NO hay sesión) */}
-        <Route element={<PublicOnlyRoute />}>
-          <Route path="/auth" element={<AuthLayout />}>
-            <Route index element={<Navigate to="login" replace />} />
-            <Route path="login" element={<LoginPage />} />
-            <Route path="register" element={<RegisterPage />} />
-          </Route>
+        >
+          <Route index element={<Navigate to="login" replace />} />
+          <Route path="login" element={<LoginPage />} />
+          <Route path="register" element={<RegisterPage />} />
         </Route>
 
-        {/* User (protegido) */}
-        <Route element={<PrivateRoute />}>
-          <Route path="/user" element={<UserLayout />}>
-            <Route index element={<Navigate to="dashboard" replace />} />
-            <Route path="dashboard" element={<UserDashboardPage />} />
-            <Route path="campaigns" element={<UserCampaignsPage />} />
-            <Route path="campaigns/new" element={<CampaignFormPage />} />
-            <Route path="campaigns/edit/:campaignId" element={<CampaignFormPage />} />
-            <Route path="posts" element={<UserPostsMentionsPage />} />
-            <Route path="analytics" element={<UserAnalyticsPage />} />
-            <Route path="connect" element={<UserConnectAccountsPage />} />
-            <Route path="plans" element={<UserPlansPage />} />
-            <Route path="compare" element={<UserProfileComparisonPage />} />
-          </Route>
-        </Route>
-
-        {/* Admin (protegido) */}
-        <Route element={<PrivateRoute />}>
-          <Route path="/admin" element={<AdminLayout />}>
-            <Route index element={<Navigate to="dashboard" replace />} />
-            <Route path="dashboard" element={<AdminDashboardPage />} />
-            <Route path="users" element={<UserManagementPage />} />
-            <Route path="plans" element={<PlansSubscriptionsPage />} />
-            <Route path="campaigns" element={<ActiveCampaignsPage />} />
-            <Route path="social" element={<SocialConnectionsPage />} />
-            <Route path="logs" element={<LogsActivityPage />} />
-            <Route path="settings" element={<GeneralSettingsPage />} />
-          </Route>
-        </Route>
-
-        {/* Fallback */}
+        {/* User */}
         <Route
-          path="*"
+          path="/user"
           element={
-            isAuthenticated ? (
-              <Navigate to="/user/dashboard" replace />
-            ) : (
-              <Navigate to="/auth/login" replace />
-            )
+            <ProtectedRoute>
+              <UserLayout />
+            </ProtectedRoute>
           }
-        />
+        >
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="dashboard" element={<UserDashboardPage />} />
+          <Route path="campaigns" element={<UserCampaignsPage />} />
+          <Route path="campaigns/new" element={<CampaignFormPage />} />
+          <Route path="campaigns/edit/:campaignId" element={<CampaignFormPage />} />
+          <Route path="posts" element={<UserPostsMentionsPage />} />
+          <Route path="analytics" element={<UserAnalyticsPage />} />
+          <Route path="connect" element={<UserConnectAccountsPage />} />
+          <Route path="plans" element={<UserPlansPage />} />
+          <Route path="compare" element={<UserProfileComparisonPage />} />
+        </Route>
+
+        {/* Admin */}
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute>
+              <AdminLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="dashboard" element={<AdminDashboardPage />} />
+          <Route path="users" element={<UserManagementPage />} />
+          <Route path="plans" element={<PlansSubscriptionsPage />} />
+          <Route path="campaigns" element={<ActiveCampaignsPage />} />
+          <Route path="social" element={<SocialConnectionsPage />} />
+          <Route path="logs" element={<LogsActivityPage />} />
+          <Route path="settings" element={<GeneralSettingsPage />} />
+        </Route>
+
+        {/* 404 */}
+        <Route path="*" element={<Navigate to="/auth/login" replace />} />
       </Routes>
     </Router>
   );

@@ -1,25 +1,51 @@
 // src/pages/auth/LoginPage.jsx
-import React, { useState } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { CardFooter } from '@/components/ui/card';
-import { useToast } from '@/components/ui/use-toast';
-import { LogIn, Mail, Lock } from 'lucide-react';
-import { motion } from 'framer-motion';
-import { login, setAuthToken } from '@/lib/api';
+import React, { useState, useEffect } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { CardFooter } from "@/components/ui/card";
+import { useToast } from "@/components/ui/use-toast";
+import { LogIn, Mail, Lock } from "lucide-react";
+import { motion } from "framer-motion";
+import { login, setAuthToken, getAuthToken } from "@/lib/api";
 
 const LoginPage = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
+
   const { toast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Si te mandaron aquí desde una ruta protegida, podemos volver ahí tras loguear:
+  // Si te mandaron aquí desde una ruta protegida, volvemos ahí tras loguear:
   const redirectTo = (location.state && location.state.from) || null;
+
+  // ---- GUARD: si ya hay token, redirige sin mostrar el formulario ----
+  useEffect(() => {
+    const token = getAuthToken();
+    if (token) {
+      try {
+        const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+        const isAdmin =
+          storedUser?.is_admin === true ||
+          storedUser?.role === "admin" ||
+          storedUser?.isAdmin === true;
+
+        const dest = redirectTo || (isAdmin ? "/admin/dashboard" : "/user/dashboard");
+        navigate(dest, { replace: true });
+      } catch {
+        // si hubiera algo raro en localStorage, manda a user por defecto
+        navigate(redirectTo || "/user/dashboard", { replace: true });
+      } finally {
+        setCheckingSession(false);
+      }
+    } else {
+      setCheckingSession(false);
+    }
+  }, [navigate, redirectTo]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -27,9 +53,9 @@ const LoginPage = () => {
 
     if (!email || !password) {
       toast({
-        title: 'Campos incompletos',
-        description: 'Por favor ingresa tu correo y contraseña.',
-        variant: 'destructive',
+        title: "Campos incompletos",
+        description: "Por favor ingresa tu correo y contraseña.",
+        variant: "destructive",
       });
       return;
     }
@@ -40,48 +66,55 @@ const LoginPage = () => {
       // Llama a /auth/login (usa VITE_API_URL)
       const data = await login({ email, password });
 
-      // token puede venir como access_token o token; login() ya se encarga de guardarlo,
-      // pero por si tu backend lo nombra distinto, reforzamos:
+      // Refuerza guardado del token por si el backend usa otra clave
       const token = data?.access_token || data?.token || null;
       if (token) setAuthToken(token);
 
-      // guarda usuario básico en localStorage para mostrar nombre/rol si quieres
+      // Guarda usuario (para saber si es admin)
       if (data?.user) {
-        localStorage.setItem('user', JSON.stringify(data.user));
+        localStorage.setItem("user", JSON.stringify(data.user));
       }
 
       toast({
-        title: 'Inicio de sesión exitoso',
-        description: `Bienvenido${data?.user?.name ? `, ${data.user.name}` : ''}.`,
-        className: 'bg-brand-green text-white',
+        title: "Inicio de sesión exitoso",
+        description: `Bienvenido${data?.user?.name ? `, ${data.user.name}` : ""}.`,
+        className: "bg-brand-green text-white",
       });
 
-      // Redirección: admin → /admin/dashboard, usuario → /user/dashboard
       const isAdmin =
         data?.user?.is_admin === true ||
-        data?.user?.role === 'admin' ||
+        data?.user?.role === "admin" ||
         data?.user?.isAdmin === true;
 
       if (redirectTo) {
         navigate(redirectTo, { replace: true });
       } else if (isAdmin) {
-        navigate('/admin/dashboard', { replace: true });
+        navigate("/admin/dashboard", { replace: true });
       } else {
-        navigate('/user/dashboard', { replace: true });
+        navigate("/user/dashboard", { replace: true });
       }
     } catch (err) {
       const msg =
         err?.message ||
-        'No se pudo iniciar sesión. Verifica tus credenciales o intenta más tarde.';
+        "No se pudo iniciar sesión. Verifica tus credenciales o intenta más tarde.";
       toast({
-        title: 'Error de autenticación',
+        title: "Error de autenticación",
         description: msg,
-        variant: 'destructive',
+        variant: "destructive",
       });
     } finally {
       setIsLoading(false);
     }
   };
+
+  // Mientras verificamos si ya había sesión, no mostramos el form (evita parpadeo doble layout)
+  if (checkingSession) {
+    return (
+      <div className="min-h-[40vh] grid place-content-center text-muted-foreground">
+        Cargando…
+      </div>
+    );
+  }
 
   return (
     <motion.div
@@ -158,7 +191,7 @@ const LoginPage = () => {
 
       <CardFooter className="mt-6 p-0">
         <p className="text-sm text-muted-foreground text-center w-full">
-          ¿No tienes una cuenta?{' '}
+          ¿No tienes una cuenta?{" "}
           <Link
             to="/auth/register"
             className="font-semibold text-brand-green hover:underline"
