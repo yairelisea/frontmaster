@@ -8,9 +8,6 @@ import { motion } from 'framer-motion';
 import { useToast } from '@/components/ui/use-toast';
 import { CampaignTable } from '@/components/user/campaigns/CampaignTable';
 import { Link, useLocation } from 'react-router-dom';
-import { fetchCampaigns, analyzeCampaign } from '@/lib/api';
-import * as report from '@/lib/report';
-import { openPrintPreview as generatePDF } from '@/lib/report';
 import * as report from '@/lib/report';
 
 
