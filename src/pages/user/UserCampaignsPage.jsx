@@ -11,6 +11,8 @@ import { Link, useLocation } from 'react-router-dom';
 import { fetchCampaigns, analyzeCampaign } from '@/lib/api';
 import * as report from '@/lib/report';
 import { openPrintPreview as generatePDF } from '@/lib/report';
+import * as report from '@/lib/report';
+
 
 const UserCampaignsPage = () => {
   const { toast } = useToast();
@@ -250,12 +252,18 @@ const UserCampaignsPage = () => {
             </div>
             {analysisData ? (
               <Button
-                onClick={handleExportPDF}
-                disabled={exporting}
-                className="bg-brand-green hover:bg-brand-green/90 text-primary-foreground"
-              >
-                {exporting ? 'Generando…' : 'Exportar PDF'}
-              </Button>
+              onClick={() => {
+                if (!analysisCampaign || !analysisData) return;
+                // Llamada directa: gestiona popup o fallback
+                report.exportAnalysis({ campaign: analysisCampaign, analysis: analysisData })
+                  .catch(err => {
+                    console.error('PDF export error:', err);
+                  });
+              }}
+              className="bg-brand-green hover:bg-brand-green/90 text-primary-foreground"
+            >
+              Exportar PDF
+            </Button>
             ) : null}
           </CardHeader>
           <CardContent className="space-y-4">
