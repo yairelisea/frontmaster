@@ -9,6 +9,8 @@ import { useToast } from '@/components/ui/use-toast';
 import { CampaignTable } from '@/components/user/campaigns/CampaignTable';
 import { Link, useLocation } from 'react-router-dom';
 import { fetchCampaigns, analyzeCampaign } from '@/lib/api';
+import * as report from '@/lib/report';
+import { openPrintPreview as generatePDF } from '@/lib/report';
 
 const UserCampaignsPage = () => {
   const { toast } = useToast();
@@ -173,51 +175,12 @@ const UserCampaignsPage = () => {
   }
 
   async function handleExportPDF() {
-    if (!analysisCampaign || !analysisData) return;
-
     try {
-      setExporting(true);
-
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/reports/pdf`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(localStorage.getItem('auth_token')
-            ? { Authorization: `Bearer ${localStorage.getItem('auth_token')}` }
-            : {}),
-        },
-        body: JSON.stringify({
-          campaign: {
-            name: analysisCampaign.name,
-            query: analysisCampaign.query,
-          },
-          analysis: analysisData,
-        }),
-      });
-
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`PDF request failed: ${res.status} ${text}`);
-      }
-
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${analysisCampaign.name || analysisCampaign.query || 'Reporte'}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      if (!analysisCampaign || !analysisData) return;
+      await generatePDF({ campaign: analysisCampaign, analysis: analysisData });
+      // Nota: esto abre una ventana nueva y lanza window.print() -> “Guardar como PDF”
     } catch (e) {
       console.error('PDF export error:', e);
-      toast({
-        title: 'No se pudo generar el PDF',
-        description: e?.message || 'Inténtalo de nuevo.',
-        variant: 'destructive',
-      });
-    } finally {
-      setExporting(false);
     }
   }
 
