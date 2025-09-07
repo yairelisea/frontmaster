@@ -173,58 +173,42 @@ const UserCampaignsPage = () => {
   }
 
   async function handleExportPDF() {
-    if (!analysisCampaign) {
-      toast({
-        title: 'Nada para exportar',
-        description: 'Primero ejecuta o carga un análisis.',
-        variant: 'destructive',
-      });
-      return;
-    }
+    if (!analysisCampaign || !analysisData) return;
 
     try {
       setExporting(true);
-      // Base URL del backend (sin slash final)
-      const API = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
-      // Usar el endpoint correcto de acuerdo al backend: /reports/pdf/{campaignId}
-      const url = `${API}/reports/pdf/${analysisCampaign.id}`;
-      // Headers: intentamos enviar Authorization si existe
-      const headers = new Headers();
-      const token = localStorage.getItem('auth_token');
-      if (token) headers.set('Authorization', `Bearer ${token}`);
-      // Fallback dev header si no hay token y está configurado
-      const fakeUser = import.meta.env.VITE_FAKE_USER_ID;
-      if (!token && fakeUser) headers.set('x-user-id', fakeUser);
 
-      const resp = await fetch(url, { method: 'GET', headers });
-      if (!resp.ok) {
-        let errorMsg = `PDF request failed: ${resp.status}`;
-        try {
-          const text = await resp.text();
-          errorMsg += ` ${text}`;
-        } catch {}
-        throw new Error(errorMsg);
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/reports/pdf`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(localStorage.getItem('auth_token')
+            ? { Authorization: `Bearer ${localStorage.getItem('auth_token')}` }
+            : {}),
+        },
+        body: JSON.stringify({
+          campaign: {
+            name: analysisCampaign.name,
+            query: analysisCampaign.query,
+          },
+          analysis: analysisData,
+        }),
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`PDF request failed: ${res.status} ${text}`);
       }
 
-      const blob = await resp.blob();
-      if (!blob || blob.size === 0) {
-        throw new Error('El PDF llegó vacío.');
-      }
-
-      // Disparar descarga sin cambiar de página
-      const fileNameSafe = (analysisCampaign.name || analysisCampaign.query || 'reporte')
-        .replace(/[^a-z0-9_\-]+/gi, '_')
-        .slice(0, 60);
-      const fileName = `${fileNameSafe || 'reporte'}.pdf`;
-
-      const blobUrl = URL.createObjectURL(blob);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = blobUrl;
-      a.download = fileName;
+      a.href = url;
+      a.download = `${analysisCampaign.name || analysisCampaign.query || 'Reporte'}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();
-      URL.revokeObjectURL(blobUrl);
+      URL.revokeObjectURL(url);
     } catch (e) {
       console.error('PDF export error:', e);
       toast({
