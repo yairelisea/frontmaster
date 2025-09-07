@@ -10,7 +10,7 @@ import { CampaignTable } from '@/components/user/campaigns/CampaignTable';
 import { Link, useLocation } from 'react-router-dom';
 import { fetchCampaigns, analyzeCampaign } from '@/lib/api';
 import * as report from '@/lib/report';
-import { downloadPdfFromBackend } from '@/lib/report';
+import { downloadAnalysisPDFViaAPI } from "@/lib/report";
 
 
 const UserCampaignsPage = () => {
@@ -179,17 +179,18 @@ const UserCampaignsPage = () => {
   async function handleExportPDF() {
     try {
       if (!analysisCampaign || !analysisData) return;
-      await downloadPdfFromBackend({
-        apiBase: import.meta.env.VITE_API_URL, // p.ej. https://masterback.onrender.com
+      await downloadAnalysisPDFViaAPI({
         campaign: analysisCampaign,
         analysis: analysisData,
+        apiBase: import.meta.env.VITE_API_URL, // tu backend (ej. https://masterback.onrender.com)
+        // authToken: ... si usas JWT, inclúyelo aquí (p.ej. localStorage.getItem('token'))
       });
     } catch (e) {
-      console.error('PDF export error:', e);
+      console.error("PDF export error:", e);
       toast({
-        title: 'Error',
-        description: e?.message || 'No se pudo exportar el PDF.',
-        variant: 'destructive',
+        title: "No se pudo descargar el PDF",
+        description: e?.message || "Intenta nuevamente.",
+        variant: "destructive",
       });
     }
   }
