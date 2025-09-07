@@ -174,13 +174,25 @@ const UserCampaignsPage = () => {
     }
   }
 
+  // Reemplazado: enviar payload al servicio de PDF del backend
   async function handleExportPDF() {
+    if (!analysisData) return;
+
     try {
-      if (!analysisCampaign || !analysisData) return;
-      await generatePDF({ campaign: analysisCampaign, analysis: analysisData });
-      // Nota: esto abre una ventana nueva y lanza window.print() -> “Guardar como PDF”
+      // payload: manda lo que tu pdf-service espera (p.ej. campaign+analysis)
+      const payload = {
+        campaign: analysisCampaign || {},
+        analysis: analysisData || {},
+      };
+
+      await report.requestBackendPDF({
+        apiBase: import.meta.env.VITE_API_URL,
+        payload,
+        filename: `${(analysisCampaign?.name || analysisCampaign?.query || 'reporte')}.pdf`,
+      });
     } catch (e) {
-      console.error('PDF export error:', e);
+      console.error("PDF export error:", e);
+      // opcional: mostrar toast si lo deseas
     }
   }
 

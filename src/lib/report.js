@@ -134,31 +134,49 @@ export function tryOpenPrint({ campaign, analysis }) {
 }
 
 // ---------- 2) Fallback al backend ----------
-export async function fallbackDownloadFromBackend({ campaign, analysis }) {
-  if (!API) throw new Error("VITE_API_URL no configurada");
-  const filename = `${campaign?.name || campaign?.query || "Reporte"}.pdf`;
+export async function requestBackendPDF({ apiBase, payload, filename = "reporte.pdf" }) {
+  // apiBase -> VITE_API_URL (ej: https://masterback.onrender.com)
+  const url = `${apiBase}/reports/pdf`;
 
-  const res = await fetch(`${API}/reports/pdf`, {
+  const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    // El backend renderiza con lo que le mandamos (no recalcula).
-    body: JSON.stringify({ campaign, analysis }),
+    body: JSON.stringify(payload),
   });
 
   if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw new Error(`PDF request failed: ${res.status} ${txt}`);
+    // Intenta leer el texto de error para debug
+    let errText = "";
+    try { errText = await res.text(); } catch {}
+    throw new Error(`PDF request failed: ${res.status} ${errText}`);
+  }
+
+  const ct = res.headers.get("content-type") || "";
+  if (!ct.toLowerCase().includes("application/pdf")) {
+    const txt = await res.text();
+    throw new Error(`Backend returned non-PDF: ${txt}`);
   }
 
   const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
+  const href = URL.createObjectURL(blob);
+
   const a = document.createElement("a");
-  a.href = url;
+  a.href = href;
   a.download = filename;
   document.body.appendChild(a);
   a.click();
   a.remove();
-  URL.revokeObjectURL(url);
+  URL.revokeObjectURL(href);
+}
+
+export async function fallbackDownloadFromBackend({ campaign, analysis }) {
+  if (!API) throw new Error("VITE_API_URL no configurada");
+  const filename = `${campaign?.name || campaign?.query || "Reporte"}.pdf`;
+  await requestBackendPDF({
+    apiBase: API,
+    payload: { campaign, analysis },
+    filename,
+  });
 }
 
 // ---------- API pública ----------
