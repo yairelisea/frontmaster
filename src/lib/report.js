@@ -122,6 +122,36 @@ function buildHTML({ campaign, analysis }) {
 </html>`;
 }
 
+// ----------------------------------------
+// Nuevas utilidades para nombre de archivo
+function sanitizeFilename(name) {
+  if (!name) return "reporte.pdf";
+  // quita caracteres raros y espacios -> _
+  const base = String(name)
+    .normalize("NFKD")
+    .replace(/[^\w\s.-]+/g, "") // solo letras/numeros/guion/punto/espacio
+    .trim()
+    .replace(/\s+/g, "_");
+  return base.length ? `${base}.pdf` : "reporte.pdf";
+}
+
+function parseFilenameFromHeaders(headers) {
+  const cd = headers.get("content-disposition"); // e.g. attachment; filename="Reporte_X.pdf"
+  if (!cd) return null;
+  const match = /filename\*?=(?:UTF-8''|")?([^";]+)"?/i.exec(cd);
+  if (match && match[1]) {
+    try {
+      // si viene urlencoded (RFC5987)
+      const decoded = decodeURIComponent(match[1]);
+      return sanitizeFilename(decoded.replace(/\.pdf$/i, ""));
+    } catch {
+      return sanitizeFilename(match[1].replace(/\.pdf$/i, ""));
+    }
+  }
+  return null;
+}
+// ----------------------------------------
+
 // ---------- 1) Pop-up / Print (rápido) ----------
 export function tryOpenPrint({ campaign, analysis }) {
   // Abrimos la ventana *sincrónicamente* (importante para no ser bloqueado)
@@ -225,6 +255,62 @@ export async function downloadPdfFromBackend({ apiBase, campaign, analysis }) {
   }
 }
 
+// Nueva función: descarga el PDF desde la API sin abrir pestaña y con opción de token
+/**
+ * Llama al backend y descarga el PDF SIN abrir pestaña.
+ * @param {Object} opts
+ * @param {Object} opts.campaign - objeto campaña (para nombre por defecto)
+ * @param {Object} opts.analysis - resultado de análisis (raw)
+ * @param {string} [opts.apiBase] - base de API; default: import.meta.env.VITE_API_URL
+ * @param {string} [opts.authToken] - Bearer token si aplica
+ */
+export async function downloadAnalysisPDFViaAPI({ campaign, analysis, apiBase, authToken } = {}) {
+  if (!analysis) throw new Error("Falta 'analysis' para generar el PDF.");
+
+  const base = (apiBase || import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
+  const url = `${base}/reports/pdf`;
+
+  const headers = { "Content-Type": "application/json" };
+  if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ campaign: campaign || {}, analysis }),
+  });
+
+  if (!res.ok) {
+    let detail = "";
+    try {
+      detail = await res.text();
+    } catch {}
+    throw new Error(`PDF request failed: ${res.status} ${detail}`);
+  }
+
+  const blob = await res.blob();
+  // nombre desde header o desde campaña
+  const fromHeader = parseFilenameFromHeaders(res.headers);
+  const filename = fromHeader || sanitizeFilename(campaign?.name || campaign?.query || "Reporte");
+
+  const blobUrl = URL.createObjectURL(blob);
+  try {
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    a.download = filename;
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    // limpieza
+    setTimeout(() => {
+      URL.revokeObjectURL(blobUrl);
+      document.body.removeChild(a);
+    }, 1000);
+  } catch (err) {
+    URL.revokeObjectURL(blobUrl);
+    throw err;
+  }
+}
+
 // ---------- API pública ----------
 /** Export único que usa popup y, si falla, usa backend. */
 export async function exportAnalysis({ campaign, analysis }) {
@@ -244,5 +330,6 @@ export async function exportAnalysis({ campaign, analysis }) {
 // Alias para compatibilidad con imports previos
 export const openPrintPreview = exportAnalysis;
 export const generatePDF = exportAnalysis;
-export const generateAnalysisPDF = exportAnalysis;
-export const downloadAnalysisPDF = exportAnalysis;
+// Los siguientes aliases ahora apuntan a la nueva función que descarga via API
+export const generateAnalysisPDF = downloadAnalysisPDFViaAPI;
+export const downloadAnalysisPDF = downloadAnalysisPDFViaAPI;
