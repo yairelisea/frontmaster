@@ -179,6 +179,52 @@ export async function fallbackDownloadFromBackend({ campaign, analysis }) {
   });
 }
 
+// Agregar la nueva función que solicita el PDF y respeta Content-Disposition / credentials
+export async function downloadPdfFromBackend({ apiBase, campaign, analysis }) {
+  if (!apiBase) throw new Error("apiBase requerido");
+  if (!analysis) throw new Error("analysis requerido");
+
+  const res = await fetch(`${apiBase}/reports/pdf`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ campaign, analysis }),
+    credentials: "include",
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`PDF request failed: ${res.status} ${text || res.statusText}`);
+  }
+
+  // Intenta obtener el nombre desde Content-Disposition
+  const cd = res.headers.get("Content-Disposition") || "";
+  let filename = "Reporte.pdf";
+  const m = cd.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+  if (m && m[1]) {
+    filename = m[1];
+  } else {
+    // Fallback con nombre seguro
+    const base = (campaign?.name || campaign?.query || "Reporte")
+      .trim()
+      .replace(/\s+/g, "_")
+      .replace(/[^A-Za-z0-9._-]/g, "");
+    filename = (base || "Reporte") + ".pdf";
+  }
+
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  try {
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;   // <- fuerza descarga; no abre pestaña
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
 // ---------- API pública ----------
 /** Export único que usa popup y, si falla, usa backend. */
 export async function exportAnalysis({ campaign, analysis }) {
