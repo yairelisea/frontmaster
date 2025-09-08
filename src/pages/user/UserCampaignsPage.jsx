@@ -8,7 +8,7 @@ import { motion } from 'framer-motion';
 import { useToast } from '@/components/ui/use-toast';
 import { CampaignTable } from '@/components/user/campaigns/CampaignTable';
 import { Link, useLocation } from 'react-router-dom';
-import { fetchCampaigns, analyzeCampaign } from '@/lib/api';
+import { fetchCampaigns, analyzeCampaign, recoverCampaign } from '@/lib/api';
 import * as report from '@/lib/report';
 import { downloadAnalysisPDFViaAPI } from "@/lib/report";
 
@@ -28,6 +28,7 @@ const UserCampaignsPage = () => {
   const [analysisData, setAnalysisData] = useState(location.state?.analysisData || null); // normalizado: { summary, sentiment_label, sentiment_score(_pct), topics, items, raw }
   const [analysisCampaign, setAnalysisCampaign] = useState(location.state?.showAnalysisFor || null);
   const [exporting, setExporting] = useState(false);
+  const [recovering, setRecovering] = useState(false);
 
   // ---- Cache helpers (localStorage) ----
   const CACHE_PREFIX = 'bbx:analysis:'; // bbx:analysis:<campaignId>
@@ -195,6 +196,28 @@ const UserCampaignsPage = () => {
     }
   }
 
+  // Ejecutar recuperación de campaña
+  async function handleRecoverCampaign(campaign) {
+    setRecovering(true);
+    try {
+      await recoverCampaign(campaign);
+      toast({
+        title: 'Recuperación completada',
+        description: `Se ejecutó la recuperación para "${campaign.name}".`,
+        className: 'bg-brand-green text-white',
+      });
+      await loadCampaigns();
+    } catch (err) {
+      toast({
+        title: 'Error en recuperación',
+        description: err?.message || 'No se pudo ejecutar la recuperación.',
+        variant: 'destructive',
+      });
+    } finally {
+      setRecovering(false);
+    }
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -259,21 +282,32 @@ const UserCampaignsPage = () => {
                 Resumen, sentimiento, tópicos y notas analizadas (vista rápida).
               </CardDescription>
             </div>
-            {analysisData ? (
-              <Button
-              onClick={() => {
-                if (!analysisCampaign || !analysisData) return;
-                // Llamada directa: gestiona popup o fallback
-                report.exportAnalysis({ campaign: analysisCampaign, analysis: analysisData })
-                  .catch(err => {
-                    console.error('PDF export error:', err);
-                  });
-              }}
-              className="bg-brand-green hover:bg-brand-green/90 text-primary-foreground"
-            >
-              Exportar PDF
-            </Button>
-            ) : null}
+            <div className="flex gap-2">
+              {analysisData ? (
+                <Button
+                  onClick={() => {
+                    if (!analysisCampaign || !analysisData) return;
+                    // Llamada directa: gestiona popup o fallback
+                    report.exportAnalysis({ campaign: analysisCampaign, analysis: analysisData })
+                      .catch(err => {
+                        console.error('PDF export error:', err);
+                      });
+                  }}
+                  className="bg-brand-green hover:bg-brand-green/90 text-primary-foreground"
+                >
+                  Exportar PDF
+                </Button>
+              ) : null}
+              {(!analysisData?.items || analysisData.items.length === 0) && (
+                <Button
+                  onClick={() => handleRecoverCampaign(analysisCampaign)}
+                  disabled={recovering}
+                  className="bg-amber-500 hover:bg-amber-600 text-primary-foreground"
+                >
+                  {recovering ? "Recuperando..." : "Ejecutar recuperación"}
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             {!analysisData && !analysisError && (

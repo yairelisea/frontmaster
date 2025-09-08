@@ -458,8 +458,23 @@ export function clearAnalysisCache(key = null) {
 /**
  * Helper: devuelve una clave de caché directamente desde una campaña.
  */
+
 export function cacheKeyForCampaign(campaign) {
   return makeAnalysisCacheKey(campaign);
+}
+
+// ========= Recover Campaign =========
+export async function recoverCampaign(campaignId) {
+  if (!API) throw new Error("VITE_API_URL no está definido");
+  if (!campaignId) throw new Error("campaignId es requerido");
+
+  const url = `${API}/search-local/campaign/${encodeURIComponent(campaignId)}`;
+  const res = await fetch(url, withHeaders({ method: "POST" }));
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Recover failed: ${res.status} ${text}`);
+  }
+  return res.json();
 }
 
 // ========= Cliente simple (get/post/put/delete) por si lo usas en otros lados =========
