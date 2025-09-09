@@ -300,12 +300,12 @@ const UserCampaignsPage = () => {
               ) : null}
               {(!analysisData?.items || analysisData.items.length === 0) && (
                 <Button
-                  onClick={() => handleRecoverCampaign(analysisCampaign)}
-                  disabled={recovering}
-                  className="bg-amber-500 hover:bg-amber-600 text-primary-foreground"
-                >
-                  {recovering ? "Recuperando..." : "Ejecutar recuperación"}
-                </Button>
+                onClick={() => handleRecoverCampaign(analysisCampaign.id)}
+                disabled={recovering}
+                className="bg-amber-500 hover:bg-amber-600 text-primary-foreground"
+              >
+                {recovering ? "Recuperando..." : "Ejecutar recuperación"}
+              </Button>
               )}
             </div>
           </CardHeader>
