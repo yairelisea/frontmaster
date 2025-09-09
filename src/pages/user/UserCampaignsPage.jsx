@@ -304,7 +304,7 @@ const UserCampaignsPage = () => {
                 disabled={recovering}
                 className="bg-amber-500 hover:bg-amber-600 text-primary-foreground"
               >
-                {recovering ? "Recuperando..." : "Ejecutar recuperación"}
+                {recovering ? "Recuperando..." : "Actualizar Campaña"}
               </Button>
               )}
             </div>
