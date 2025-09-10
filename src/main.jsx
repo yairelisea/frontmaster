@@ -3,26 +3,29 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 
-// App principal
 import App from "./App.jsx";
 
-// Admin (OJO con rutas y mayúsculas/minúsculas)
+// Admin (ojo: rutas según tu repo)
 import AdminLayout from "./admin/AdminLayout.jsx";
-import AdminCampaignsPage from "./admin/AdminCampaignsPage.jsx";                 // ← existe en src/admin
-import AdminCampaignDetailPage from "./pages/admin/AdminCampaignDetailPage.jsx"; // ← existe en src/pages/admin
+import AdminCampaignsPage from "./admin/AdminCampaignsPage.jsx"; // está en src/admin/
+import AdminCampaignDetailPage from "./pages/admin/AdminCampaignDetailPage.jsx"; // está en src/pages/admin/
 
-// Fallback de error para que no truene con “Unexpected Application Error”
+// Fallback de error para evitar “Unexpected Application Error”
 function RouteError() {
   return (
-    <div style={{ padding: 16 }}>
+    <div style={{ padding: 24 }}>
       <h1 style={{ fontWeight: 600, marginBottom: 8 }}>Algo salió mal</h1>
-      <p>Revisa consola/Network para ver el detalle del error.</p>
+      <p>Revisa consola/Network en el navegador para más detalles.</p>
     </div>
   );
 }
 
 const router = createBrowserRouter([
-  { path: "/", element: <App />, errorElement: <RouteError /> },
+  {
+    path: "/",
+    element: <App />,
+    errorElement: <RouteError />,
+  },
   {
     path: "/admin",
     element: <AdminLayout />,
