@@ -3,33 +3,37 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 
-// App principal
 import App from "./App.jsx";
-
-// Admin
 import AdminLayout from "./admin/AdminLayout.jsx";
-import AdminCampaignsPage from "./admin/AdminCampaignsPage.jsx";            // ← ruta correcta
-import AdminCampaignDetailPage from "./pages/admin/AdminCampaignDetailPage.jsx"; // ← detalle ya en /pages/admin
+import AdminCampaignsPage from "./admin/AdminCampaignsPage.jsx";
+import AdminCampaignDetailPage from "./pages/admin/AdminCampaignDetailPage.jsx";
 
-// (Opcional) proveedor de auth si ya lo usas; comenta si no existe
-// import { AuthProvider } from "./auth/AuthContext.jsx";
+// Error boundary simple para rutas
+function RouteError() {
+  // React Router inyecta error en useRouteError, pero como fallback mostramos genérico
+  return (
+    <div style={{ padding: 16 }}>
+      <h1 style={{ fontWeight: 600, marginBottom: 8 }}>Algo salió mal</h1>
+      <p>Revisa la consola del navegador y la respuesta de la API.</p>
+    </div>
+  );
+}
 
 const router = createBrowserRouter([
-  { path: "/", element: <App /> },
+  { path: "/", element: <App />, errorElement: <RouteError /> },
   {
     path: "/admin",
     element: <AdminLayout />,
+    errorElement: <RouteError />,
     children: [
-      { path: "campaigns", element: <AdminCampaignsPage /> },
-      { path: "campaigns/:id", element: <AdminCampaignDetailPage /> },
+      { path: "campaigns", element: <AdminCampaignsPage />, errorElement: <RouteError /> },
+      { path: "campaigns/:id", element: <AdminCampaignDetailPage />, errorElement: <RouteError /> },
     ],
   },
 ]);
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    {/* <AuthProvider> */}
     <RouterProvider router={router} />
-    {/* </AuthProvider> */}
   </React.StrictMode>
 );
