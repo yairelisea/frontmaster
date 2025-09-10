@@ -1,148 +1,117 @@
-// src/pages/admin/ActiveCampaignsPage.jsx (wired to backend)
-import React, { useEffect, useState } from 'react';
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { AdminAPI } from '@/lib/api';
+import { useEffect, useState } from "react";
+import { fetchCampaigns, adminRecover } from "../../api/client";
 
-const initial = { name:'', query:'', size:25, days_back:14, lang:'es-419', country:'MX', city_keywords:[], plan:'BASIC', autoEnabled:true };
+function Row({ c, onDone }) {
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState("");
 
-export default function ActiveCampaignsPage() {
-  const [rows, setRows] = useState([]);
-  const [form, setForm] = useState(initial);
-  const [addingUrl, setAddingUrl] = useState('');
-  const [targetCamp, setTargetCamp] = useState(null);
-
-  const load = async () => {
+  const onRecover = async () => {
+    setLoading(true);
+    setMsg("");
     try {
-      const data = await AdminAPI.listCampaigns();
-      setRows(Array.isArray(data) ? data : []);
-    } catch (e) { console.error(e); alert(e.message); }
-  };
-  useEffect(()=>{ load(); }, []);
-
-  const onCreate = async (e) => {
-    e.preventDefault();
-    try {
-      await AdminAPI.createCampaign(form);
-      setForm(initial);
-      await load();
-    } catch (e) { alert(e.message); }
-  };
-
-  const updateSize = async (c, size) => {
-    try {
-      await AdminAPI.updateCampaign(c.id, { size: Number(size) });
-      await load();
-    } catch (e) { alert(e.message); }
-  };
-
-  const updatePlan = async (c, plan) => {
-    try {
-      await AdminAPI.updateCampaign(c.id, { plan });
-      await load();
-    } catch (e) { alert(e.message); }
-  };
-
-  const toggleAuto = async (c) => {
-    try {
-      await AdminAPI.updateCampaign(c.id, { autoEnabled: !c.autoEnabled });
-      await load();
-    } catch (e) { alert(e.message); }
-  };
-
-  const addUrl = async (c) => {
-    if (!addingUrl.trim()) return;
-    try {
-      await AdminAPI.addUrlToCampaign(c.id, addingUrl.trim());
-      setAddingUrl('');
-      setTargetCamp(null);
-      await load();
-    } catch (e) { alert(e.message); }
+      const r = await adminRecover(c.id);
+      if (r?.result) {
+        setMsg(`Local:${r.result.local} News:${r.result.ingest} Analyses:${r.result.analyses}`);
+      } else {
+        setMsg("Ejecutado");
+      }
+      onDone && onDone();
+    } catch (e) {
+      setMsg("Error al recuperar");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Crear campaña</CardTitle>
-          <CardDescription>Define actor (query), tamaño y plan.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={onCreate} className="grid grid-cols-7 gap-3 items-end">
-            <Input placeholder="nombre" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} required />
-            <Input placeholder="query (actor)" value={form.query} onChange={e=>setForm({...form,query:e.target.value})} required />
-            <Input type="number" placeholder="size" value={form.size} onChange={e=>setForm({...form,size:Number(e.target.value)})} />
-            <Select value={form.plan} onValueChange={v=>setForm({...form, plan:v})}>
-              <SelectTrigger><SelectValue placeholder="Plan" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="BASIC">BASIC</SelectItem>
-                <SelectItem value="PRO">PRO</SelectItem>
-                <SelectItem value="UNLIMITED">UNLIMITED</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button type="submit">Crear</Button>
-          </form>
-        </CardContent>
-      </Card>
+    <tr className="border-b">
+      <td className="py-2 pr-3">{c.name}</td>
+      <td className="py-2 pr-3 text-gray-600">{c.query}</td>
+      <td className="py-2 pr-3">{c.size}</td>
+      <td className="py-2 pr-3">{c.days_back}</td>
+      <td className="py-2 pr-3">{c.country}</td>
+      <td className="py-2 pr-3">{new Date(c.createdAt).toLocaleString()}</td>
+      <td className="py-2">
+        <button
+          onClick={onRecover}
+          disabled={loading}
+          className="px-3 py-1.5 rounded-lg bg-black text-white text-sm disabled:opacity-60"
+        >
+          {loading ? "Procesando..." : "Recuperar resultados"}
+        </button>
+        {msg && <div className="text-xs mt-1">{msg}</div>}
+      </td>
+    </tr>
+  );
+}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Campañas</CardTitle>
-          <CardDescription>Edita tamaño, plan, auto y URLs manuales.</CardDescription>
-        </CardHeader>
-        <CardContent className="overflow-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nombre</TableHead>
-                <TableHead>Query</TableHead>
-                <TableHead>Size</TableHead>
-                <TableHead>Plan</TableHead>
-                <TableHead>Auto</TableHead>
-                <TableHead>Agregar URL</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map(c => (
-                <TableRow key={c.id}>
-                  <TableCell>{c.name}</TableCell>
-                  <TableCell>{c.query}</TableCell>
-                  <TableCell>
-                    <Input className="w-24" type="number" defaultValue={c.size} onBlur={e=>updateSize(c, e.target.value)} />
-                  </TableCell>
-                  <TableCell>
-                    <Select value={c.plan} onValueChange={v=>updatePlan(c, v)}>
-                      <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="BASIC">BASIC</SelectItem>
-                        <SelectItem value="PRO">PRO</SelectItem>
-                        <SelectItem value="UNLIMITED">UNLIMITED</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
-                  <TableCell>
-                    <Button variant="outline" size="sm" onClick={()=>toggleAuto(c)}>{c.autoEnabled ? 'ON':'OFF'}</Button>
-                  </TableCell>
-                  <TableCell>
-                    {targetCamp===c.id ? (
-                      <div className="flex gap-2">
-                        <Input placeholder="https://..." value={addingUrl} onChange={e=>setAddingUrl(e.target.value)} />
-                        <Button size="sm" onClick={()=>addUrl(c)}>Agregar</Button>
-                        <Button size="sm" variant="ghost" onClick={()=>{setTargetCamp(null);setAddingUrl('')}}>Cancelar</Button>
-                      </div>
-                    ) : (
-                      <Button size="sm" onClick={()=>setTargetCamp(c.id)}>Agregar URL</Button>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+export default function AdminCampaignsPage() {
+  const [items, setItems] = useState([]);
+  const [q, setQ] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const data = await fetchCampaigns();
+      setItems(Array.isArray(data) ? data : []);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const filtered = !q
+    ? items
+    : items.filter((c) =>
+        `${c.name} ${c.query}`.toLowerCase().includes(q.toLowerCase())
+      );
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold">Mis campañas</h1>
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Buscar…"
+          className="border rounded-lg px-3 py-2 text-sm"
+        />
+      </div>
+
+      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-100 text-gray-700">
+            <tr>
+              <th className="text-left py-2 pr-3 font-medium">Nombre</th>
+              <th className="text-left py-2 pr-3 font-medium">Consulta</th>
+              <th className="text-left py-2 pr-3 font-medium">Size</th>
+              <th className="text-left py-2 pr-3 font-medium">Días</th>
+              <th className="text-left py-2 pr-3 font-medium">País</th>
+              <th className="text-left py-2 pr-3 font-medium">Creada</th>
+              <th className="text-left py-2 pr-3 font-medium">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr>
+                <td className="py-6 text-center" colSpan={7}>Cargando…</td>
+              </tr>
+            ) : filtered.length === 0 ? (
+              <tr>
+                <td className="py-6 text-center" colSpan={7}>Sin campañas</td>
+              </tr>
+            ) : (
+              filtered.map((c) => (
+                <Row key={c.id} c={c} onDone={load} />
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
