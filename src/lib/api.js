@@ -676,3 +676,43 @@ export async function downloadAnalysisPDFByParams({ q, size = 25, days_back = 14
   a.remove();
   URL.revokeObjectURL(url);
 }
+
+// ==== Admin API helpers (added) ====
+export async function apiFetch(path, opts = {}) {
+  const base = (import.meta?.env?.VITE_API_URL || window.API_URL || "").replace(/\/+$/,"");
+  const url = `${base}${path.startsWith("/")?path:`/${path}`}`;
+  const headers = {
+    "Content-Type": "application/json",
+    ...(opts.headers || {}),
+  };
+  // Try token from local/session storage (common keys)
+  const keys = ["auth_token","access_token","token"];
+  let t = null;
+  try {
+    for (const k of keys) {
+      const v = localStorage.getItem(k) || sessionStorage.getItem(k);
+      if (v && v.trim()) { t = v.trim(); break; }
+    }
+  } catch {}
+  if (t) headers["Authorization"] = `Bearer ${t}`;
+  const res = await fetch(url, { ...opts, headers });
+  if (!res.ok) {
+    const text = await res.text().catch(()=>res.statusText);
+    throw new Error(`HTTP ${res.status}: ${text}`);
+  }
+  const ct = res.headers.get("content-type") || "";
+  return ct.includes("application/json") ? res.json() : res.text();
+}
+
+// Admin Users
+export const AdminAPI = {
+  listUsers: () => apiFetch("/admin/users"),
+  createUser: (payload) => apiFetch("/admin/users", { method: "POST", body: JSON.stringify(payload) }),
+  updateUser: (id, payload) => apiFetch(`/admin/users/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
+
+  // Campaigns
+  listCampaigns: () => apiFetch("/admin/campaigns"),
+  createCampaign: (payload) => apiFetch("/admin/campaigns", { method: "POST", body: JSON.stringify(payload) }),
+  updateCampaign: (id, payload) => apiFetch(`/admin/campaigns/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
+  addUrlToCampaign: (id, url) => apiFetch(`/admin/campaigns/${id}/urls`, { method: "POST", body: JSON.stringify({ type: "NEWS", url }) }),
+};

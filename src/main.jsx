@@ -1,3 +1,7 @@
+import AdminLayout from "./admin/AdminLayout";
+import UsersPage from "./admin/UsersPage";
+import CampaignsPage from "./admin/CampaignsPage";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 // src/main.jsx
 import React from "react";
 import ReactDOM from "react-dom/client";
