@@ -5,6 +5,7 @@
 const API = (import.meta.env.VITE_API_URL || "https://masterback.onrender.com").replace(/\/+$/, "");
 const FAKE_USER = import.meta.env.VITE_FAKE_USER_ID || "dev-user-1";
 const ADMIN_HEADER = String(import.meta.env.VITE_ADMIN_HEADER) === "true";
+const STATIC_BEARER = (import.meta.env.VITE_API_TOKEN || "").trim();
 
 // ========= Auth (token en localStorage / sessionStorage) =========
 const TOKEN_KEYS = [
@@ -76,10 +77,14 @@ function withHeaders(init = {}) {
   const base = init || {};
   const headers = new Headers(base.headers || {});
 
-  // Auth: siempre que exista token lo mandamos como Bearer
+  // Auth: usa token del storage; si no hay, usa un bearer fijo por env (útil en builds/preview)
   const token = getAuthToken();
-  if (token && !headers.has("Authorization")) {
-    headers.set("Authorization", `Bearer ${token}`);
+  if (!headers.has("Authorization")) {
+    if (token) {
+      headers.set("Authorization", `Bearer ${token}`);
+    } else if (STATIC_BEARER) {
+      headers.set("Authorization", `Bearer ${STATIC_BEARER}`);
+    }
   }
 
   // Fallback dev: x-user-id si no hay token (útil en dev/staging)
