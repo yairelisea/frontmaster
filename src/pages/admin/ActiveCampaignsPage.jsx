@@ -1,117 +1,99 @@
 import { useEffect, useState } from "react";
-import { fetchCampaigns, adminRecover } from "../../api/client.js";
+import { useParams, Link } from "react-router-dom";
+import { fetchCampaignItems, fetchCampaignAnalyses } from "../../api/client.js";
 
-function Row({ c, onDone }) {
-  const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState("");
-
-  const onRecover = async () => {
-    setLoading(true);
-    setMsg("");
-    try {
-      const r = await adminRecover(c.id);
-      if (r?.result) {
-        setMsg(`Local:${r.result.local} News:${r.result.ingest} Analyses:${r.result.analyses}`);
-      } else {
-        setMsg("Ejecutado");
-      }
-      onDone && onDone();
-    } catch (e) {
-      setMsg("Error al recuperar");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <tr className="border-b">
-      <td className="py-2 pr-3">{c.name}</td>
-      <td className="py-2 pr-3 text-gray-600">{c.query}</td>
-      <td className="py-2 pr-3">{c.size}</td>
-      <td className="py-2 pr-3">{c.days_back}</td>
-      <td className="py-2 pr-3">{c.country}</td>
-      <td className="py-2 pr-3">{new Date(c.createdAt).toLocaleString()}</td>
-      <td className="py-2">
-        <button
-          onClick={onRecover}
-          disabled={loading}
-          className="px-3 py-1.5 rounded-lg bg-black text-white text-sm disabled:opacity-60"
-        >
-          {loading ? "Procesando..." : "Recuperar resultados"}
-        </button>
-        {msg && <div className="text-xs mt-1">{msg}</div>}
-      </td>
-    </tr>
-  );
-}
-
-export default function AdminCampaignsPage() {
+export default function AdminCampaignDetailPage() {
+  const { id } = useParams();
   const [items, setItems] = useState([]);
-  const [q, setQ] = useState("");
+  const [analyses, setAnalyses] = useState([]);
+  const [tab, setTab] = useState("items");
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
     setLoading(true);
     try {
-      const data = await fetchCampaigns();
-      setItems(Array.isArray(data) ? data : []);
+      const [it, an] = await Promise.all([
+        fetchCampaignItems(id),
+        fetchCampaignAnalyses(id),
+      ]);
+      setItems(Array.isArray(it) ? it : []);
+      setAnalyses(Array.isArray(an) ? an : []);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    load();
-  }, []);
-
-  const filtered = !q
-    ? items
-    : items.filter((c) =>
-        `${c.name} ${c.query}`.toLowerCase().includes(q.toLowerCase())
-      );
+  useEffect(() => { load(); }, [id]);
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Mis campañas</h1>
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Buscar…"
-          className="border rounded-lg px-3 py-2 text-sm"
-        />
+        <h1 className="text-xl font-semibold">Campaña {id.slice(0,8)}…</h1>
+        <Link to="/admin/campaigns" className="text-sm underline">← Volver</Link>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-100 text-gray-700">
-            <tr>
-              <th className="text-left py-2 pr-3 font-medium">Nombre</th>
-              <th className="text-left py-2 pr-3 font-medium">Consulta</th>
-              <th className="text-left py-2 pr-3 font-medium">Size</th>
-              <th className="text-left py-2 pr-3 font-medium">Días</th>
-              <th className="text-left py-2 pr-3 font-medium">País</th>
-              <th className="text-left py-2 pr-3 font-medium">Creada</th>
-              <th className="text-left py-2 pr-3 font-medium">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td className="py-6 text-center" colSpan={7}>Cargando…</td>
-              </tr>
-            ) : filtered.length === 0 ? (
-              <tr>
-                <td className="py-6 text-center" colSpan={7}>Sin campañas</td>
-              </tr>
-            ) : (
-              filtered.map((c) => (
-                <Row key={c.id} c={c} onDone={load} />
-              ))
-            )}
-          </tbody>
-        </table>
+      <div className="flex gap-2">
+        <button className={`px-3 py-1.5 rounded ${tab==="items"?"bg-black text-white":"bg-gray-200"}`} onClick={()=>setTab("items")}>Items</button>
+        <button className={`px-3 py-1.5 rounded ${tab==="analyses"?"bg-black text-white":"bg-gray-200"}`} onClick={()=>setTab("analyses")}>Analyses</button>
       </div>
+
+      {loading ? <div>Cargando…</div> : (
+        tab==="items" ? (
+          <div className="bg-white rounded-xl shadow-sm overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="text-left p-2">Fecha</th>
+                  <th className="text-left p-2">Título</th>
+                  <th className="text-left p-2">Fuente</th>
+                  <th className="text-left p-2">Status</th>
+                  <th className="text-left p-2">Link</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.length===0 ? (
+                  <tr><td className="p-4 text-center" colSpan={5}>Sin items</td></tr>
+                ) : items.map(it=>(
+                  <tr key={it.id} className="border-b">
+                    <td className="p-2">{it.publishedAt ? new Date(it.publishedAt).toLocaleString() : "-"}</td>
+                    <td className="p-2">{it.title}</td>
+                    <td className="p-2">{(new URL(it.url)).hostname}</td>
+                    <td className="p-2">{it.status || "-"}</td>
+                    <td className="p-2"><a className="underline text-blue-600" href={it.url} target="_blank" rel="noreferrer">Abrir</a></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="bg-white rounded-xl shadow-sm overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="text-left p-2">Fecha</th>
+                  <th className="text-left p-2">Sentiment</th>
+                  <th className="text-left p-2">Tone</th>
+                  <th className="text-left p-2">Topics</th>
+                  <th className="text-left p-2">Resumen</th>
+                </tr>
+              </thead>
+              <tbody>
+                {analyses.length===0 ? (
+                  <tr><td className="p-4 text-center" colSpan={5}>Sin análisis</td></tr>
+                ) : analyses.map(a=>(
+                  <tr key={a.id} className="border-b">
+                    <td className="p-2">{a.createdAt ? new Date(a.createdAt).toLocaleString() : "-"}</td>
+                    <td className="p-2">{a.sentiment ?? "-"}</td>
+                    <td className="p-2">{a.tone ?? "-"}</td>
+                    <td className="p-2">{Array.isArray(a.topics)? a.topics.join(", ") : "-"}</td>
+                    <td className="p-2">{a.summary ?? "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      )}
     </div>
   );
-}
+} 
