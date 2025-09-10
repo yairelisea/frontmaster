@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { fetchCampaigns, adminRecover } from "../../api/client";
+import { fetchCampaigns, adminRecover } from "../../api/client.js";
 
 function Row({ c, onDone }) {
   const [loading, setLoading] = useState(false);

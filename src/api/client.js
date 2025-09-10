@@ -1,3 +1,4 @@
+// src/api/client.js  (JS puro)
 export const API_BASE = import.meta.env.VITE_API_URL || "";
 
 const getToken = () =>
@@ -5,7 +6,13 @@ const getToken = () =>
   localStorage.getItem("token") ||
   "";
 
-const j = (r: Response) => r.json().catch(() => ({} as any));
+const j = async (r) => {
+  try {
+    return await r.json();
+  } catch {
+    return {};
+  }
+};
 
 export async function fetchCampaigns() {
   const res = await fetch(`${API_BASE}/campaigns`, {
@@ -15,7 +22,7 @@ export async function fetchCampaigns() {
   return j(res);
 }
 
-export async function adminRecover(campaignId: string) {
+export async function adminRecover(campaignId) {
   const res = await fetch(`${API_BASE}/admin/campaigns/${campaignId}/recover`, {
     method: "POST",
     headers: { Authorization: `Bearer ${getToken()}` },
