@@ -677,42 +677,105 @@ export async function downloadAnalysisPDFByParams({ q, size = 25, days_back = 14
   URL.revokeObjectURL(url);
 }
 
-// ==== Admin API helpers (added) ====
-export async function apiFetch(path, opts = {}) {
-  const base = (import.meta?.env?.VITE_API_URL || window.API_URL || "").replace(/\/+$/,"");
-  const url = `${base}${path.startsWith("/")?path:`/${path}`}`;
-  const headers = {
-    "Content-Type": "application/json",
-    ...(opts.headers || {}),
-  };
-  // Try token from local/session storage (common keys)
-  const keys = ["auth_token","access_token","token"];
-  let t = null;
+// ==== Admin helper additions (from user snippet, adjusted names to avoid conflicts) ====
+export const API_BASE =
+  (import.meta?.env?.VITE_API_URL) ||
+  (typeof window !== "undefined" ? window.__API_BASE__ : "") ||
+  "";
+
+const ADMIN_TOKEN_KEYS = ["access_token", "token"];
+
+export function setAdminAuthToken(token) {
   try {
-    for (const k of keys) {
-      const v = localStorage.getItem(k) || sessionStorage.getItem(k);
-      if (v && v.trim()) { t = v.trim(); break; }
-    }
+    ADMIN_TOKEN_KEYS.forEach((k) => localStorage.removeItem(k));
+    localStorage.setItem("access_token", token || "");
   } catch {}
-  if (t) headers["Authorization"] = `Bearer ${t}`;
-  const res = await fetch(url, { ...opts, headers });
-  if (!res.ok) {
-    const text = await res.text().catch(()=>res.statusText);
-    throw new Error(`HTTP ${res.status}: ${text}`);
-  }
-  const ct = res.headers.get("content-type") || "";
-  return ct.includes("application/json") ? res.json() : res.text();
 }
 
-// Admin Users
-export const AdminAPI = {
-  listUsers: () => apiFetch("/admin/users"),
-  createUser: (payload) => apiFetch("/admin/users", { method: "POST", body: JSON.stringify(payload) }),
-  updateUser: (id, payload) => apiFetch(`/admin/users/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
+export function getAdminAuthToken() {
+  try {
+    for (const k of ADMIN_TOKEN_KEYS) {
+      const v = localStorage.getItem(k);
+      if (v) return v;
+    }
+  } catch {}
+  return "";
+}
 
-  // Campaigns
-  listCampaigns: () => apiFetch("/admin/campaigns"),
-  createCampaign: (payload) => apiFetch("/admin/campaigns", { method: "POST", body: JSON.stringify(payload) }),
-  updateCampaign: (id, payload) => apiFetch(`/admin/campaigns/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
-  addUrlToCampaign: (id, url) => apiFetch(`/admin/campaigns/${id}/urls`, { method: "POST", body: JSON.stringify({ type: "NEWS", url }) }),
-};
+export async function authLogin({ email, password }) {
+  const payload = password ? { email, password } : { email };
+  const r = await fetch(`${API_BASE}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const text = await r.text();
+  if (!r.ok) throw new Error(`POST /auth/login ${r.status} ${text}`);
+  let data = {};
+  try {
+    data = JSON.parse(text);
+  } catch {}
+  const token = data.access_token || data.token || data.accessToken || "";
+  if (!token) throw new Error("El backend no devolvió token");
+  setAdminAuthToken(token);
+  return data;
+}
+
+export async function authFetch(path, opts = {}) {
+  const token = getAdminAuthToken();
+  const r = await fetch(`${API_BASE}${path}`, {
+    ...opts,
+    headers: {
+      ...(opts.headers || {}),
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  return r;
+}
+
+export async function adminFetchCampaigns() {
+  const r = await authFetch(`/campaigns`);
+  if (!r.ok) throw new Error(`GET /campaigns ${r.status}`);
+  return r.json().catch(() => []);
+}
+
+export async function adminFetchCampaignById(id) {
+  const r = await authFetch(`/campaigns/${id}`);
+  if (!r.ok) throw new Error(`GET /campaigns/${id} ${r.status}`);
+  return r.json().catch(() => ({}));
+}
+
+export async function adminRecover(campaignId) {
+  const r = await authFetch(`/search-local/campaign/${campaignId}`, { method: "POST" });
+  if (!r.ok) throw new Error(`POST /search-local/campaign/${campaignId} ${r.status}`);
+  return r.json().catch(() => ({}));
+}
+
+export async function adminProcessAnalyses(campaignId) {
+  const r = await authFetch(`/analyses/process_pending?campaignId=${encodeURIComponent(campaignId)}`, { method: "POST" });
+  if (!r.ok) throw new Error(`POST /analyses/process_pending ${r.status}`);
+  return r.json().catch(() => ({}));
+}
+
+export async function adminBuildReport(campaign) {
+  const payload = {
+    campaign: { name: campaign?.name || "", query: campaign?.query || "" },
+    analysis: { summary: "Reporte desde Admin" },
+  };
+  const r = await authFetch(`/reports/pdf`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!r.ok) throw new Error(`POST /reports/pdf ${r.status}`);
+  const ct = r.headers.get("content-type") || "";
+  if (ct.includes("application/pdf")) {
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "reporte.pdf"; a.click();
+    URL.revokeObjectURL(url);
+    return { downloaded: true };
+  }
+  return r.json().catch(() => ({}));
+}
