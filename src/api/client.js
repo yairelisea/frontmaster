@@ -100,26 +100,44 @@ export async function adminProcessAnalyses(campaignId, limit = 200) {
 // -------------------------------------------------------
 // Reports (tu /reports/pdf requiere payload mínimo)
 // -------------------------------------------------------
+function dlBlob(blob, filename = "reporte.pdf") {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+
 export async function adminBuildReport(campaign) {
   const payload = {
     campaign: { name: campaign?.name || "", query: campaign?.query || "" },
     analysis: { summary: "Reporte generado desde Admin" },
   };
 
+  const token =
+    (typeof localStorage !== "undefined" &&
+      (localStorage.getItem("access_token") || localStorage.getItem("token"))) ||
+    "";
+
   const r = await fetch(`${API_BASE}/reports/pdf`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${getToken()}`,
-    },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
     body: JSON.stringify(payload),
   });
 
+  const ct = r.headers.get("content-type") || "";
   if (!r.ok) {
-    const txt = await r.text().catch(() => "");
+    const txt = await (ct.includes("application/json") ? r.json().then(JSON.stringify).catch(()=> "") : r.text().catch(()=> ""));
     throw new Error(`POST /reports/pdf ${r.status} ${txt}`);
   }
-  return j(r); // idealmente { url }
+  if (ct.includes("application/json")) {
+    try { return await r.json(); } catch { return {}; }
+  } else {
+    const blob = await r.blob();
+    const cd = r.headers.get("content-disposition") || "";
+    const m = /filename\*=UTF-8''([^;\n]+)/i.exec(cd) || /filename="?([^\";\n]+)"?/i.exec(cd);
+    dlBlob(blob, m ? decodeURIComponent(m[1]) : "reporte.pdf");
+    return { downloaded: true };
+  }
 }
 
 // -------------------------------------------------------
