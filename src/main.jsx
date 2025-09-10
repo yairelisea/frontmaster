@@ -1,4 +1,4 @@
-import AdminLayout from "./admin/AdminLayout";
+import AdminLayout from "./layouts/AdminLayout";
 import UsersPage from "./admin/UsersPage";
 import CampaignsPage from "./admin/CampaignsPage";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
