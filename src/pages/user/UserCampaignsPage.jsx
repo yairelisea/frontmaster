@@ -201,39 +201,65 @@ const UserCampaignsPage = () => {
     if (!campaignId) return;
     setRecovering(true);
     try {
-      // 1) Ejecuta la recuperación en el backend
-      await recoverCampaign(campaignId);
+      // 1) Ejecuta la recuperación en el backend y capta lo que venga
+      const rec = await recoverCampaign(campaignId);
 
-      toast({
-        title: 'Recuperación completada',
-        description: 'Se re-ejecutó la búsqueda y se actualizaron los datos de la campaña.',
-        className: 'bg-brand-green text-white',
-      });
+      // 2) Ubica la campaña (lista actual o la que ya está seleccionada)
+      const currentList = Array.isArray(campaigns) ? campaigns : [];
+      const camp = currentList.find((c) => c.id === campaignId) || analysisCampaign || null;
 
-      // 2) Limpia cache local para forzar datos nuevos
-      try {
-        localStorage.removeItem(`${CACHE_PREFIX}${campaignId}`);
-      } catch {}
+      // 3) Intenta construir un objeto de análisis con lo que devuelva el backend
+      //    Soporta dos formatos:
+      //    A) { analysis: {...} }
+      //    B) { items:[...], summary, sentiment_label, sentiment_score, sentiment_score_pct, topics }
+      let newAnalysis = null;
+      if (rec && typeof rec === 'object') {
+        if (rec.analysis && typeof rec.analysis === 'object') {
+          newAnalysis = rec.analysis;
+        } else if (Array.isArray(rec.items)) {
+          newAnalysis = {
+            items: rec.items,
+            summary: rec.summary ?? null,
+            sentiment_label: rec.sentiment_label ?? null,
+            sentiment_score: rec.sentiment_score ?? null,
+            sentiment_score_pct: rec.sentiment_score_pct ?? null,
+            topics: Array.isArray(rec.topics) ? rec.topics : [],
+          };
+        }
+      }
 
-      // 3) Recarga campañas desde el backend
-      const list = await fetchCampaigns();
-      setCampaigns(Array.isArray(list) ? list : []);
+      // 4) Si el backend no regresó nada util, como fallback vuelve a analizar ahora
+      if (!newAnalysis || !Array.isArray(newAnalysis.items)) {
+        if (camp) {
+          setAnalyzingId(camp.id);
+          const res = await analyzeCampaign(camp);
+          newAnalysis = res;
+        }
+      }
 
-      // 4) Ubica la campaña recuperada y corre análisis para mostrar en el panel
-      const camp = (Array.isArray(list) ? list : []).find(c => c.id === campaignId) || analysisCampaign;
-      if (camp) {
-        setAnalyzingId(camp.id);
-        setAnalysisError(null);
+      // 5) Si logramos obtener análisis, muéstralo YA y guarda en cache local
+      if (newAnalysis && camp) {
         setAnalysisCampaign(camp);
-        const res = await analyzeCampaign(camp);
-        setAnalysisData(res);
-        saveCachedAnalysis(camp, res);
+        setAnalysisData(newAnalysis);
+        try { localStorage.setItem(`${CACHE_PREFIX}${camp.id}`, JSON.stringify(newAnalysis)); } catch {}
         toast({
           title: 'Análisis actualizado',
-          description: `Se analizó “${camp.name}”.`,
+          description: `Se mostraron los nuevos resultados de “${camp.name}”.`,
           className: 'bg-brand-green text-white',
         });
+      } else {
+        // Si ni así, informa y recarga campañas por si hay cambios
+        toast({
+          title: 'Recuperación completada',
+          description: 'Se ejecutó la recuperación, pero no se obtuvieron notas. Intenta nuevamente más tarde.',
+        });
       }
+
+      // 6) Recarga campañas (sin bloquear la UI)
+      try {
+        const list = await fetchCampaigns();
+        setCampaigns(Array.isArray(list) ? list : []);
+      } catch {}
     } catch (err) {
       console.error('recoverCampaign error:', err);
       toast({
@@ -327,13 +353,16 @@ const UserCampaignsPage = () => {
                   Exportar PDF
                 </Button>
               ) : null}
-              {(!analysisData?.items || analysisData.items.length === 0) && (
+              {analysisCampaign && (
                 <Button
-                  onClick={() => analysisCampaign?.id && handleRecoverCampaign(analysisCampaign.id)}
+                  onClick={() => {
+                    const id = analysisCampaign?.id;
+                    if (id) handleRecoverCampaign(id);
+                  }}
                   disabled={recovering}
                   className="bg-amber-500 hover:bg-amber-600 text-primary-foreground"
                 >
-                  {recovering ? "Recuperando..." : "Actualizar Campaña"}
+                  {recovering ? "Recuperando..." : "Recuperar resultados"}
                 </Button>
               )}
             </div>
