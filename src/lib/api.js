@@ -398,7 +398,20 @@ export async function searchLocal({
   limit = 50,
 }) {
   if (!API) throw new Error("VITE_API_URL no está definido");
-  const body = { query, city, country, lang, days_back, limit };
+
+  // 👇 Normaliza: si city es array, únelos; si no, usa string limpio
+  const cityStr = Array.isArray(city)
+    ? city.filter(Boolean).join(", ")
+    : (city ?? "");
+
+  const body = {
+    query,
+    city: cityStr,
+    country,
+    lang,
+    days_back,
+    limit,
+  };
 
   const res = await fetch(`${API}/search-local`, withHeaders({
     method: "POST",
