@@ -8,49 +8,38 @@ const ADMIN_HEADER = String(import.meta.env.VITE_ADMIN_HEADER) === "true";
 const STATIC_BEARER = (import.meta.env.VITE_API_TOKEN || "").trim();
 
 // ========= Auth (token en localStorage / sessionStorage) =========
-const TOKEN_KEYS = [
-  "auth_token",         // preferido por la app
-  "access_token",       // común en APIs
-  "token"               // fallback genérico
-];
+// Replaced with simplified token helpers and API_BASE per user snippet
+export const API_BASE =
+  (import.meta?.env?.VITE_API_URL) ||
+  (typeof window !== "undefined" ? window.__API_BASE__ : "") ||
+  "";
 
-function _readFrom(storage, keys) {
-  try {
-    for (const k of keys) {
-      const v = storage.getItem(k);
-      if (v && typeof v === "string" && v.trim()) return v.trim();
-    }
-  } catch {}
-  return null;
-}
+const TOKEN_KEY = "access_token";
 
 export function getAuthToken() {
-  // 1) localStorage (persistente)
-  let tok = _readFrom(localStorage, TOKEN_KEYS);
-  if (tok) return tok;
-  // 2) sessionStorage (por si el login lo guardó ahí en algún flujo)
-  tok = _readFrom(sessionStorage, TOKEN_KEYS);
-  return tok;
+  try { return localStorage.getItem(TOKEN_KEY) || ""; } catch { return ""; }
 }
-
-export function setAuthToken(token) {
-  if (!token) return;
-  const clean = String(token).trim();
-  if (!clean) return;
-  try {
-    localStorage.setItem("auth_token", clean);
-    // Mantén sincronizado el resto de posibles claves conocidas
-    localStorage.setItem("access_token", clean);
-    localStorage.setItem("token", clean);
-    try { sessionStorage.setItem("auth_token", clean); } catch {}
-  } catch {}
+export function setAuthToken(t) {
+  try { localStorage.setItem(TOKEN_KEY, t || ""); } catch {}
 }
-
 export function clearAuthToken() {
-  try {
-    for (const k of TOKEN_KEYS) localStorage.removeItem(k);
-    try { for (const k of TOKEN_KEYS) sessionStorage.removeItem(k); } catch {}
-  } catch {}
+  try { localStorage.removeItem(TOKEN_KEY); } catch {}
+}
+
+export async function apiLogin({ email, password }) {
+  const payload = password ? { email, password } : { email };
+  const r = await fetch(`${API_BASE}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const text = await r.text();
+  if (!r.ok) throw new Error(`POST /auth/login ${r.status} ${text}`);
+  let data = {};
+  try { data = JSON.parse(text); } catch {}
+  const token = data.access_token || data.token || data.accessToken || "";
+  if (!token) throw new Error("El backend no devolvió token");
+  return { token, user: data.user || null };
 }
 
 // Header Authorization si hay token
@@ -675,107 +664,4 @@ export async function downloadAnalysisPDFByParams({ q, size = 25, days_back = 14
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
-}
-
-// ==== Admin helper additions (from user snippet, adjusted names to avoid conflicts) ====
-export const API_BASE =
-  (import.meta?.env?.VITE_API_URL) ||
-  (typeof window !== "undefined" ? window.__API_BASE__ : "") ||
-  "";
-
-const ADMIN_TOKEN_KEYS = ["access_token", "token"];
-
-export function setAdminAuthToken(token) {
-  try {
-    ADMIN_TOKEN_KEYS.forEach((k) => localStorage.removeItem(k));
-    localStorage.setItem("access_token", token || "");
-  } catch {}
-}
-
-export function getAdminAuthToken() {
-  try {
-    for (const k of ADMIN_TOKEN_KEYS) {
-      const v = localStorage.getItem(k);
-      if (v) return v;
-    }
-  } catch {}
-  return "";
-}
-
-export async function authLogin({ email, password }) {
-  const payload = password ? { email, password } : { email };
-  const r = await fetch(`${API_BASE}/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  const text = await r.text();
-  if (!r.ok) throw new Error(`POST /auth/login ${r.status} ${text}`);
-  let data = {};
-  try {
-    data = JSON.parse(text);
-  } catch {}
-  const token = data.access_token || data.token || data.accessToken || "";
-  if (!token) throw new Error("El backend no devolvió token");
-  setAdminAuthToken(token);
-  return data;
-}
-
-export async function authFetch(path, opts = {}) {
-  const token = getAdminAuthToken();
-  const r = await fetch(`${API_BASE}${path}`, {
-    ...opts,
-    headers: {
-      ...(opts.headers || {}),
-      Authorization: `Bearer ${token}`,
-    },
-  });
-  return r;
-}
-
-export async function adminFetchCampaigns() {
-  const r = await authFetch(`/campaigns`);
-  if (!r.ok) throw new Error(`GET /campaigns ${r.status}`);
-  return r.json().catch(() => []);
-}
-
-export async function adminFetchCampaignById(id) {
-  const r = await authFetch(`/campaigns/${id}`);
-  if (!r.ok) throw new Error(`GET /campaigns/${id} ${r.status}`);
-  return r.json().catch(() => ({}));
-}
-
-export async function adminRecover(campaignId) {
-  const r = await authFetch(`/search-local/campaign/${campaignId}`, { method: "POST" });
-  if (!r.ok) throw new Error(`POST /search-local/campaign/${campaignId} ${r.status}`);
-  return r.json().catch(() => ({}));
-}
-
-export async function adminProcessAnalyses(campaignId) {
-  const r = await authFetch(`/analyses/process_pending?campaignId=${encodeURIComponent(campaignId)}`, { method: "POST" });
-  if (!r.ok) throw new Error(`POST /analyses/process_pending ${r.status}`);
-  return r.json().catch(() => ({}));
-}
-
-export async function adminBuildReport(campaign) {
-  const payload = {
-    campaign: { name: campaign?.name || "", query: campaign?.query || "" },
-    analysis: { summary: "Reporte desde Admin" },
-  };
-  const r = await authFetch(`/reports/pdf`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!r.ok) throw new Error(`POST /reports/pdf ${r.status}`);
-  const ct = r.headers.get("content-type") || "";
-  if (ct.includes("application/pdf")) {
-    const blob = await r.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = "reporte.pdf"; a.click();
-    URL.revokeObjectURL(url);
-    return { downloaded: true };
-  }
-  return r.json().catch(() => ({}));
 }
