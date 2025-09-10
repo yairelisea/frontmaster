@@ -1,12 +1,7 @@
 // src/admin/AdminCampaignsPage.jsx
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import {
-  fetchCampaigns,
-  adminRecover,
-  adminProcessAnalyses,
-  adminBuildReport,
-} from "./apiClientBridge.js";
+import { fetchCampaigns, ping, API_BASE } from "../api/client.js";
 
 export default function AdminCampaignsPage() {
   const [list, setList] = useState([]);
@@ -15,12 +10,12 @@ export default function AdminCampaignsPage() {
   const [err, setErr] = useState("");
 
   const load = async () => {
-    setLoading(true);
-    setErr("");
+    setLoading(true); setErr("");
     try {
       const data = await fetchCampaigns();
-      setList(Array.isArray(data) ? data : []);
+      setList(Array.isArray(data) ? data : (data?.items || data?.results || []));
     } catch (e) {
+      console.error("fetchCampaigns error:", e);
       setErr(e?.message || "Error cargando campañas");
       setList([]);
     } finally {
@@ -30,20 +25,33 @@ export default function AdminCampaignsPage() {
 
   useEffect(() => { load(); }, []);
 
-  const filtered = !q
-    ? list
-    : list.filter((c) => (`${c.name} ${c.query}`).toLowerCase().includes(q.toLowerCase()));
+  const filtered = !q ? list :
+    list.filter(c => (`${c.name} ${c.query}`).toLowerCase().includes(q.toLowerCase()));
 
   return (
-    <div className="space-y-4 p-4">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3">
         <h1 className="text-xl font-semibold">Mis campañas</h1>
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Buscar…"
-          className="border rounded-lg px-3 py-2 text-sm"
-        />
+        <div className="flex items-center gap-2">
+          <button
+            onClick={async () => {
+              try {
+                const h = await ping();
+                alert(`Health OK: ${JSON.stringify(h)}`);
+              } catch (e) { alert(`Health FAIL: ${e.message}`); }
+            }}
+            className="px-3 py-1.5 rounded bg-gray-200 text-xs"
+          >
+            Probar /health
+          </button>
+          <span className="text-xs text-gray-500">API: {API_BASE || "(vacío)"}</span>
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Buscar…"
+            className="border rounded-lg px-3 py-2 text-sm"
+          />
+        </div>
       </div>
 
       {err && (
@@ -62,14 +70,13 @@ export default function AdminCampaignsPage() {
               <th className="text-left py-2 px-3 font-medium">Días</th>
               <th className="text-left py-2 px-3 font-medium">País</th>
               <th className="text-left py-2 px-3 font-medium">Creada</th>
-              <th className="text-left py-2 px-3 font-medium">Acciones</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td className="py-6 text-center" colSpan={7}>Cargando…</td></tr>
+              <tr><td className="py-6 text-center" colSpan={6}>Cargando…</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td className="py-6 text-center" colSpan={7}>Sin campañas</td></tr>
+              <tr><td className="py-6 text-center" colSpan={6}>Sin campañas</td></tr>
             ) : (
               filtered.map((c) => (
                 <tr key={c.id} className="border-b">
@@ -82,9 +89,6 @@ export default function AdminCampaignsPage() {
                   <td className="py-2 px-3">{c.country}</td>
                   <td className="py-2 px-3">
                     {c.createdAt ? new Date(c.createdAt).toLocaleString() : "—"}
-                  </td>
-                  <td className="py-2 px-3">
-                    <Actions c={c} onDone={load} />
                   </td>
                 </tr>
               ))

@@ -1,27 +1,26 @@
+// src/admin/AdminLayout.jsx
 import { Outlet, Link, useNavigate } from "react-router-dom";
-import { useEffect } from "react";
 
 export default function AdminLayout() {
   const nav = useNavigate();
-  useEffect(() => {
-    const role =
-      localStorage.getItem("role") ||
-      (JSON.parse(localStorage.getItem("user") || "{}")?.role ?? "");
-    if (String(role).toLowerCase() !== "admin") nav("/");
-  }, [nav]);
+  const logout = () => { localStorage.removeItem("access_token"); nav("/"); };
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-black text-white">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="font-semibold">Panel Admin</div>
-          <nav className="flex gap-4 text-sm">
-            <Link to="/admin/campaigns" className="hover:underline">Mis campañas</Link>
-            <Link to="/admin/users" className="hover:underline">Usuarios</Link>
+      <header className="bg-white border-b">
+        <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-4">
+          <Link to="/admin/campaigns" className="font-semibold">Admin</Link>
+          <nav className="text-sm flex gap-3">
+            <Link to="/admin/campaigns" className="hover:underline">Campañas</Link>
           </nav>
+          <div className="ml-auto">
+            <button onClick={logout} className="text-sm px-3 py-1.5 rounded bg-gray-200">Salir</button>
+          </div>
         </div>
       </header>
-      <main className="max-w-6xl mx-auto px-4 py-6"><Outlet /></main>
+      <main className="max-w-6xl mx-auto p-4">
+        <Outlet />
+      </main>
     </div>
   );
 }

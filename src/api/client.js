@@ -1,110 +1,70 @@
 // src/api/client.js
-
-// Base de API (Netlify: VITE_API_URL)
 export const API_BASE =
-  (import.meta && import.meta.env && import.meta.env.VITE_API_URL) ||
-  (typeof window !== "undefined" && window.__API_BASE__) ||
+  (import.meta?.env?.VITE_API_URL) ||
+  (typeof window !== "undefined" ? window.__API_BASE__ : "") ||
   "";
 
-// Token helper
 const getToken = () =>
-  (typeof localStorage !== "undefined" && (localStorage.getItem("access_token") || localStorage.getItem("token"))) ||
-  "";
+  (typeof localStorage !== "undefined" && (
+    localStorage.getItem("access_token") ||
+    localStorage.getItem("token")
+  )) || "";
 
-// Parse JSON con fallback silencioso
-const j = async (r) => {
-  try { return await r.json(); } catch { return {}; }
+if (typeof window !== "undefined" && !window.__BBX_LOGGED__) {
+  console.log("[BBX] API_BASE =", API_BASE);
+  console.log("[BBX] has token? =", !!getToken());
+  window.__BBX_LOGGED__ = true;
+}
+
+const parseJSON = async (r) => { try { return await r.json(); } catch { return {}; } };
+const throwHttp = async (r, label) => {
+  const ct = r.headers.get("content-type") || "";
+  const body = ct.includes("application/json") ? JSON.stringify(await parseJSON(r)) : (await r.text().catch(()=> ""))
+  const err = new Error(`${label} ${r.status} ${r.statusText} :: ${body}`);
+  err.status = r.status; err.body = body; throw err;
 };
 
-// -------------------------------------------------------
-// Meta
-// -------------------------------------------------------
-export async function health() {
-  const r = await fetch(`${API_BASE}/health`);
-  return r.ok;
+export async function ping() {
+  const r = await fetch(`${API_BASE}/health`, { credentials: "omit" });
+  if (!r.ok) await throwHttp(r, "GET /health");
+  return parseJSON(r);
 }
 
-// -------------------------------------------------------
-// Auth
-// -------------------------------------------------------
-export async function login(email, name) {
-  const r = await fetch(`${API_BASE}/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, name }),
-  });
-  if (!r.ok) {
-    const txt = await r.text().catch(() => "");
-    throw new Error(`POST /auth/login ${r.status} ${txt}`);
-  }
-  return j(r); // { access_token, token_type, user }
-}
-
-// -------------------------------------------------------
-// Campaigns
-// -------------------------------------------------------
 export async function fetchCampaigns() {
   const r = await fetch(`${API_BASE}/campaigns`, {
     headers: { Authorization: `Bearer ${getToken()}` },
   });
-  if (!r.ok) {
-    const txt = await r.text().catch(() => "");
-    throw new Error(`GET /campaigns ${r.status} ${txt}`);
-  }
-  return j(r); // CampaignOut[]
+  if (!r.ok) await throwHttp(r, "GET /campaigns");
+  return parseJSON(r);
 }
 
 export async function fetchCampaignById(id) {
   const r = await fetch(`${API_BASE}/campaigns/${id}`, {
     headers: { Authorization: `Bearer ${getToken()}` },
   });
-  if (!r.ok) {
-    const txt = await r.text().catch(() => "");
-    throw new Error(`GET /campaigns/${id} ${r.status} ${txt}`);
-  }
-  return j(r); // CampaignOut
+  if (!r.ok) await throwHttp(r, `GET /campaigns/${id}`);
+  return parseJSON(r);
 }
 
-// -------------------------------------------------------
-// Search Local + Analyses (endpoints reales del backend)
-// -------------------------------------------------------
 export async function adminRecover(campaignId) {
-  // Re-ejecuta búsqueda local y persiste
-  const r = await fetch(`${API_BASE}/search-local/campaign/${encodeURIComponent(campaignId)}`, {
+  const r = await fetch(`${API_BASE}/search-local/campaign/${campaignId}`, {
     method: "POST",
     headers: { Authorization: `Bearer ${getToken()}` },
   });
-  if (!r.ok) {
-    const txt = await r.text().catch(() => "");
-    throw new Error(`POST /search-local/campaign/${campaignId} ${r.status} ${txt}`);
-  }
-  return j(r);
+  if (!r.ok) await throwHttp(r, `POST /search-local/campaign/${campaignId}`);
+  return parseJSON(r);
 }
 
-export async function adminProcessAnalyses(campaignId, limit = 200) {
-  const qs = new URLSearchParams();
-  if (campaignId) qs.set("campaignId", campaignId);
-  if (limit) qs.set("limit", String(limit));
-
-  const r = await fetch(`${API_BASE}/analyses/process_pending?${qs.toString()}`, {
+export async function adminProcessAnalyses(campaignId) {
+  const url = campaignId
+    ? `${API_BASE}/analyses/process_pending?campaignId=${encodeURIComponent(campaignId)}`
+    : `${API_BASE}/analyses/process_pending`;
+  const r = await fetch(url, {
     method: "POST",
     headers: { Authorization: `Bearer ${getToken()}` },
   });
-  if (!r.ok) {
-    const txt = await r.text().catch(() => "");
-    throw new Error(`POST /analyses/process_pending ${r.status} ${txt}`);
-  }
-  return j(r);
-}
-
-// -------------------------------------------------------
-// Reports (tu /reports/pdf requiere payload mínimo)
-// -------------------------------------------------------
-function dlBlob(blob, filename = "reporte.pdf") {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
-  URL.revokeObjectURL(url);
+  if (!r.ok) await throwHttp(r, "POST /analyses/process_pending");
+  return parseJSON(r);
 }
 
 export async function adminBuildReport(campaign) {
@@ -112,52 +72,24 @@ export async function adminBuildReport(campaign) {
     campaign: { name: campaign?.name || "", query: campaign?.query || "" },
     analysis: { summary: "Reporte generado desde Admin" },
   };
-
-  const token =
-    (typeof localStorage !== "undefined" &&
-      (localStorage.getItem("access_token") || localStorage.getItem("token"))) ||
-    "";
-
   const r = await fetch(`${API_BASE}/reports/pdf`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    headers: {
+      Authorization: `Bearer ${getToken()}`,
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify(payload),
   });
-
   const ct = r.headers.get("content-type") || "";
-  if (!r.ok) {
-    const txt = await (ct.includes("application/json") ? r.json().then(JSON.stringify).catch(()=> "") : r.text().catch(()=> ""));
-    throw new Error(`POST /reports/pdf ${r.status} ${txt}`);
-  }
-  if (ct.includes("application/json")) {
-    try { return await r.json(); } catch { return {}; }
-  } else {
-    const blob = await r.blob();
-    const cd = r.headers.get("content-disposition") || "";
-    const m = /filename\*=UTF-8''([^;\n]+)/i.exec(cd) || /filename="?([^\";\n]+)"?/i.exec(cd);
-    dlBlob(blob, m ? decodeURIComponent(m[1]) : "reporte.pdf");
-    return { downloaded: true };
-  }
-}
+  if (!r.ok) await throwHttp(r, "POST /reports/pdf");
+  if (ct.includes("application/json")) return parseJSON(r);
 
-// -------------------------------------------------------
-// (Opcional) News/AI si las usas desde el front
-// -------------------------------------------------------
-export async function searchNews({ q, lang = "es-419", country = "MX", size = 35, days_back = 14, campaignId } = {}) {
-  const url = new URL(`${API_BASE}/news/news`, window.location.origin);
-  url.searchParams.set("q", q);
-  url.searchParams.set("lang", lang);
-  url.searchParams.set("country", country);
-  url.searchParams.set("size", String(size));
-  url.searchParams.set("days_back", String(days_back));
-  if (campaignId) url.searchParams.set("campaignId", campaignId);
-
-  const r = await fetch(url.toString().replace(window.location.origin, ""), {
-    headers: { Authorization: `Bearer ${getToken()}` },
-  });
-  if (!r.ok) {
-    const txt = await r.text().catch(() => "");
-    throw new Error(`GET /news/news ${r.status} ${txt}`);
-  }
-  return j(r);
+  // PDF directo
+  const blob = await r.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = "reporte.pdf";
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  return { downloaded: true };
 }
