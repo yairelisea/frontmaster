@@ -196,24 +196,53 @@ const UserCampaignsPage = () => {
     }
   }
 
-  // Ejecutar recuperación de campaña
-  async function handleRecoverCampaign(campaign) {
+  // Ejecutar recuperación de campaña y refrescar análisis en pantalla
+  async function handleRecoverCampaign(campaignId) {
+    if (!campaignId) return;
     setRecovering(true);
     try {
-      await recoverCampaign(campaign);
+      // 1) Ejecuta la recuperación en el backend
+      await recoverCampaign(campaignId);
+
       toast({
         title: 'Recuperación completada',
-        description: `Se ejecutó la recuperación para "${campaign.name}".`,
+        description: 'Se re-ejecutó la búsqueda y se actualizaron los datos de la campaña.',
         className: 'bg-brand-green text-white',
       });
-      await loadCampaigns();
+
+      // 2) Limpia cache local para forzar datos nuevos
+      try {
+        localStorage.removeItem(`${CACHE_PREFIX}${campaignId}`);
+      } catch {}
+
+      // 3) Recarga campañas desde el backend
+      const list = await fetchCampaigns();
+      setCampaigns(Array.isArray(list) ? list : []);
+
+      // 4) Ubica la campaña recuperada y corre análisis para mostrar en el panel
+      const camp = (Array.isArray(list) ? list : []).find(c => c.id === campaignId) || analysisCampaign;
+      if (camp) {
+        setAnalyzingId(camp.id);
+        setAnalysisError(null);
+        setAnalysisCampaign(camp);
+        const res = await analyzeCampaign(camp);
+        setAnalysisData(res);
+        saveCachedAnalysis(camp, res);
+        toast({
+          title: 'Análisis actualizado',
+          description: `Se analizó “${camp.name}”.`,
+          className: 'bg-brand-green text-white',
+        });
+      }
     } catch (err) {
+      console.error('recoverCampaign error:', err);
       toast({
         title: 'Error en recuperación',
         description: err?.message || 'No se pudo ejecutar la recuperación.',
         variant: 'destructive',
       });
     } finally {
+      setAnalyzingId(null);
       setRecovering(false);
     }
   }
@@ -300,12 +329,12 @@ const UserCampaignsPage = () => {
               ) : null}
               {(!analysisData?.items || analysisData.items.length === 0) && (
                 <Button
-                onClick={() => handleRecoverCampaign(analysisCampaign.id)}
-                disabled={recovering}
-                className="bg-amber-500 hover:bg-amber-600 text-primary-foreground"
-              >
-                {recovering ? "Recuperando..." : "Actualizar Campaña"}
-              </Button>
+                  onClick={() => analysisCampaign?.id && handleRecoverCampaign(analysisCampaign.id)}
+                  disabled={recovering}
+                  className="bg-amber-500 hover:bg-amber-600 text-primary-foreground"
+                >
+                  {recovering ? "Recuperando..." : "Actualizar Campaña"}
+                </Button>
               )}
             </div>
           </CardHeader>
