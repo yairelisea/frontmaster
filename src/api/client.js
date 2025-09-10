@@ -42,3 +42,30 @@ export async function fetchCampaignAnalyses(id) {
   return j(r);
 }
 
+export async function adminRecover(campaignId) {
+  const r = await fetch(`${API_BASE}/admin/campaigns/${campaignId}/recover`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${localStorage.getItem("access_token") || localStorage.getItem("token") || ""}`,
+    },
+  });
+  if (!r.ok) {
+    const txt = await r.text().catch(() => "");
+    throw new Error(`POST /admin/campaigns/${campaignId}/recover ${r.status} ${txt}`);
+  }
+  try { return await r.json(); } catch { return {}; }
+}
+
+export async function adminBuildReport(campaignId) {
+  const r = await fetch(`${API_BASE}/admin/campaigns/${campaignId}/report`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${localStorage.getItem("access_token") || localStorage.getItem("token") || ""}`,
+    },
+  });
+  if (!r.ok) {
+    const txt = await r.text().catch(() => "");
+    throw new Error(`POST /admin/campaigns/${campaignId}/report ${r.status} ${txt}`);
+  }
+  try { return await r.json(); } catch { return {}; }
+}
