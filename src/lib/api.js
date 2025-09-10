@@ -375,6 +375,19 @@ export async function analyzeNews({
   return normalizeAnalysis(json);
 }
 
+// Convenience wrapper used by UserCampaignsPage and other views
+export async function analyzeCampaign(campaign) {
+  if (!campaign) throw new Error("campaign es requerido");
+  return analyzeNews({
+    q: campaign.query,
+    size: campaign.size ?? 25,
+    days_back: campaign.days_back ?? 14,
+    lang: campaign.lang ?? "es-419",
+    country: campaign.country ?? "MX",
+    overall: true,
+  });
+}
+
 // ========= Local Search (POST /search-local) =========
 export async function searchLocal({
   query,
