@@ -230,26 +230,38 @@ const UserCampaignsPage = () => {
   }
 
   // Ejecutar recuperación de campaña y refrescar análisis en pantalla
-  async function handleRecoverCampaign(campaignId) {
+  async function handleRecoverCampaign(target) {
+    // target puede ser un id (string) o el objeto campaña
+    const campaignId = typeof target === 'string' ? target : (target?.id || null);
     if (!campaignId) return;
-    setRecovering(true);
-    try {
-      // 1) Ejecuta la recuperación en el backend y capta lo que venga
-      const rec = await recoverCampaign(campaignId);
 
-      // 2) Ubica la campaña (lista actual o la que ya está seleccionada)
+    setRecovering(true);
+    setAnalyzingId(campaignId); // muestra spinner en la fila si aplica
+    try {
+      // 1) Ejecuta la recuperación en el backend
+      const rec = await recoverCampaign(campaignId);
+      console.log('[recoverCampaign] raw response:', rec);
+
+      // 2) Ubica la campaña en memoria o usa la que esté seleccionada
       const currentList = Array.isArray(campaigns) ? campaigns : [];
       const camp = currentList.find((c) => c.id === campaignId) || analysisCampaign || null;
 
       // 3) Normaliza lo que regrese el backend
       let newAnalysis = normalizeAnalysis(rec);
 
-      // 4) Si el backend no regresó nada util, como fallback vuelve a analizar ahora
-      if (!newAnalysis || !Array.isArray(newAnalysis.items)) {
-        if (camp) {
-          setAnalyzingId(camp.id);
+      // 3.1) Acepta también formatos alternos comunes
+      if (!newAnalysis) {
+        const alt = rec?.data || rec?.result || null;
+        if (alt && typeof alt === 'object') newAnalysis = normalizeAnalysis(alt);
+      }
+
+      // 4) Si sigue vacío, como fallback vuelve a analizar ahora
+      if ((!newAnalysis || !Array.isArray(newAnalysis.items) || newAnalysis.items.length === 0) && camp) {
+        try {
           const res = await analyzeCampaign(camp);
           newAnalysis = normalizeAnalysis(res) || res || null;
+        } catch (e) {
+          console.error('analyzeCampaign (fallback) error:', e);
         }
       }
 
@@ -258,24 +270,24 @@ const UserCampaignsPage = () => {
         setAnalysisCampaign(camp);
         setAnalysisData(newAnalysis);
         try { localStorage.setItem(`${CACHE_PREFIX}${camp.id}`, JSON.stringify(newAnalysis)); } catch {}
+
+        const recoveredCount = Array.isArray(newAnalysis.items) ? newAnalysis.items.length : 0;
         toast({
           title: 'Análisis actualizado',
-          description: `Se mostraron los nuevos resultados de “${camp.name}”.`,
+          description: recoveredCount > 0
+            ? `Se recuperaron ${recoveredCount} artículos para “${camp.name}”.`
+            : `Recuperación ejecutada, pero sin notas nuevas.`,
           className: 'bg-brand-green text-white',
         });
       } else {
-        // Si ni así, informa y recarga campañas por si hay cambios
         toast({
           title: 'Recuperación completada',
-          description: 'Se ejecutó la recuperación, pero no se obtuvieron notas. Intenta nuevamente más tarde.',
+          description: 'No se obtuvieron notas. Intenta nuevamente más tarde.',
         });
       }
 
-      // 6) Recarga campañas (sin bloquear la UI)
-      try {
-        const list = await fetchCampaigns();
-        setCampaigns(Array.isArray(list) ? list : []);
-      } catch {}
+      // 6) Recarga campañas (no bloquea la UI)
+      loadCampaigns().catch(() => {});
     } catch (err) {
       console.error('recoverCampaign error:', err);
       toast({
@@ -371,14 +383,11 @@ const UserCampaignsPage = () => {
               ) : null}
               {analysisCampaign && (
                 <Button
-                  onClick={() => {
-                    const id = analysisCampaign?.id;
-                    if (id) handleRecoverCampaign(id);
-                  }}
+                  onClick={() => handleRecoverCampaign(analysisCampaign)}
                   disabled={recovering}
                   className="bg-amber-500 hover:bg-amber-600 text-primary-foreground"
                 >
-                  {recovering ? "Recuperando..." : "Recuperar resultados"}
+                  {recovering ? 'Recuperando...' : 'Recuperar resultados'}
                 </Button>
               )}
             </div>
