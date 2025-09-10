@@ -38,37 +38,7 @@ const UserCampaignsPage = () => {
   const [exporting, setExporting] = useState(false);
   const [recovering, setRecovering] = useState(false);
 
-  // Normaliza distintos formatos de análisis a un shape único que la UI entiende
-  function normalizeAnalysis(input) {
-    if (!input || typeof input !== 'object') return null;
-
-    // Si viene como { analysis: {...} }
-    const base = input.analysis && typeof input.analysis === 'object' ? input.analysis : input;
-
-    // Posibles llaves para items
-    const items =
-      (Array.isArray(base.items) && base.items) ||
-      (Array.isArray(input.items) && input.items) || [];
-
-    // Otras propiedades comunes (con fallbacks)
-    const summary = base.summary ?? input.summary ?? null;
-    const sentiment_label = base.sentiment_label ?? input.sentiment_label ?? null;
-    const sentiment_score = base.sentiment_score ?? input.sentiment_score ?? null;
-    const sentiment_score_pct = base.sentiment_score_pct ?? input.sentiment_score_pct ?? null;
-    const topics = Array.isArray(base.topics) ? base.topics : (Array.isArray(input.topics) ? input.topics : []);
-
-    // Si no hay items, considera nulo para forzar fallback
-    if (!Array.isArray(items) || items.length === 0) return null;
-
-    return {
-      items,
-      summary,
-      sentiment_label,
-      sentiment_score,
-      sentiment_score_pct,
-      topics,
-    };
-  }
+  // ---- Cache helpers (localStorage) ----
   // ---- Cache helpers (localStorage) ----
   const CACHE_PREFIX = 'bbx:analysis:'; // bbx:analysis:<campaignId>
 
