@@ -6,7 +6,7 @@ import {
   adminRecover,
   adminProcessAnalyses,
   adminBuildReport,
-} from "./apiClientBridge.js";
+} from "../../api/client.js";
 
 export default function AdminCampaignDetailPage() {
   const { id } = useParams();

@@ -1,4 +1,3 @@
-// scripts/fix-imports.cjs
 const fs = require('fs');
 const path = require('path');
 
@@ -19,16 +18,13 @@ function replaceAll(file) {
   let src = fs.readFileSync(file, 'utf8');
   let out = src;
 
-  // Cambiar imports relativos a client.js -> alias @/api/client.js
-  // ../../api/client(.js)?  o  ../api/client(.js)?  o  ./api/client(.js)?
-  out = out.replace(/from\s+['"](?:\.\.\/){2,}api\/client(?:\.js)?['"]/g, "from \"@/api/client.js\"");
-  out = out.replace(/from\s+['"]\.\.\/api\/client(?:\.js)?['"]/g,             "from \"@/api/client.js\"");
-  out = out.replace(/from\s+['"]\.\/api\/client(?:\.js)?['"]/g,               "from \"@/api/client.js\"");
+  out = out.replace(/from\s+['"](?:\.\.\/){2,}api\/client(?:\.js)?['"]/g, 'from "@/api/client.js"');
+  out = out.replace(/from\s+['"]\.\.\/api\/client(?:\.js)?['"]/g,         'from "@/api/client.js"');
+  out = out.replace(/from\s+['"]\.\/api\/client(?:\.js)?['"]/g,           'from "@/api/client.js"');
 
-  // Si usabas client sin extensión, normaliza también
-  out = out.replace(/from\s+['"](?:\.\.\/){2,}api\/client['"]/g, "from \"@/api/client.js\"");
-  out = out.replace(/from\s+['"]\.\.\/api\/client['"]/g,         "from \"@/api/client.js\"");
-  out = out.replace(/from\s+['"]\.\/api\/client['"]/g,           "from \"@/api/client.js\"");
+  out = out.replace(/from\s+['"](?:\.\.\/){2,}api\/client['"]/g, 'from "@/api/client.js"');
+  out = out.replace(/from\s+['"]\.\.\/api\/client['"]/g,         'from "@/api/client.js"');
+  out = out.replace(/from\s+['"]\.\/api\/client['"]/g,           'from "@/api/client.js"');
 
   if (out !== src) {
     fs.writeFileSync(file, out, 'utf8');

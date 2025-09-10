@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
-    
+    "preview": "vite preview",
+    "fix-imports": "node scripts/fix-imports.cjs"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.0.5",
@@ -31,12 +31,11 @@
     "cmdk": "^0.2.0",
     "framer-motion": "^10.16.4",
     "lucide-react": "^0.292.0",
-    "react": "^18.2.0", 
+    "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.16.0",
     "tailwind-merge": "^1.14.0",
     "tailwindcss-animate": "^1.0.7"
-    "fix-imports": "node scripts/fix-imports.mjs"
   },
   "devDependencies": {
     "@types/node": "^20.8.3",
