@@ -1,41 +1,43 @@
-export const API_BASE = import.meta.env.VITE_API_URL || "";
+// --- al inicio del archivo ---
+export const API_BASE =
+  (import.meta && import.meta.env && import.meta.env.VITE_API_URL) ||
+  window?.__API_BASE__ ||
+  "";
 
 const getToken = () =>
   localStorage.getItem("access_token") ||
   localStorage.getItem("token") ||
   "";
 
-const j = async (r) => { try { return await r.json(); } catch { return {}; } };
+// Respuesta JSON con fallback a texto para depurar errores
+const j = async (r) => {
+  try { return await r.json(); } catch { return {}; }
+};
 
+// --- reemplaza/asegura esta función ---
 export async function fetchCampaigns() {
-  const res = await fetch(`${API_BASE}/campaigns`, {
+  const r = await fetch(`${API_BASE}/campaigns`, {
     headers: { Authorization: `Bearer ${getToken()}` },
   });
-  if (!res.ok) throw new Error(`campaigns ${res.status}`);
-  return j(res);
+  if (!r.ok) {
+    const txt = await r.text().catch(() => "");
+    throw new Error(`GET /campaigns ${r.status} ${txt}`);
+  }
+  return j(r);
 }
 
-export async function adminRecover(campaignId) {
-  const res = await fetch(`${API_BASE}/admin/campaigns/${campaignId}/recover`, {
-    method: "POST",
+// (Opcional) si necesitas también:
+export async function fetchCampaignItems(id) {
+  const r = await fetch(`${API_BASE}/campaigns/${id}/items`, {
     headers: { Authorization: `Bearer ${getToken()}` },
   });
-  if (!res.ok) { const msg = await res.text().catch(() => ""); throw new Error(`recover ${res.status} ${msg}`); }
-  return j(res);
+  if (!r.ok) throw new Error(`GET /campaigns/${id}/items ${r.status}`);
+  return j(r);
 }
-
-export async function fetchCampaignItems(campaignId) {
-  const res = await fetch(`${API_BASE}/campaigns/${campaignId}/items`, {
+export async function fetchCampaignAnalyses(id) {
+  const r = await fetch(`${API_BASE}/campaigns/${id}/analyses`, {
     headers: { Authorization: `Bearer ${getToken()}` },
   });
-  if (!res.ok) throw new Error(`items ${res.status}`);
-  return j(res);
-}
-
-export async function fetchCampaignAnalyses(campaignId) {
-  const res = await fetch(`${API_BASE}/campaigns/${campaignId}/analyses`, {
-    headers: { Authorization: `Bearer ${getToken()}` },
-  });
-  if (!res.ok) throw new Error(`analyses ${res.status}`);
-  return j(res);
+  if (!r.ok) throw new Error(`GET /campaigns/${id}/analyses ${r.status}`);
+  return j(r);
 }

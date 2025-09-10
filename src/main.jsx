@@ -3,18 +3,20 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 
+// App principal
 import App from "./App.jsx";
-import AdminLayout from "./admin/AdminLayout.jsx";
-import AdminCampaignsPage from "./admin/AdminCampaignsPage.jsx";
-import AdminCampaignDetailPage from "./pages/admin/AdminCampaignDetailPage.jsx";
 
-// Error boundary simple para rutas
+// Admin (OJO con rutas y mayúsculas/minúsculas)
+import AdminLayout from "./admin/AdminLayout.jsx";
+import AdminCampaignsPage from "./admin/AdminCampaignsPage.jsx";                 // ← existe en src/admin
+import AdminCampaignDetailPage from "./pages/admin/AdminCampaignDetailPage.jsx"; // ← existe en src/pages/admin
+
+// Fallback de error para que no truene con “Unexpected Application Error”
 function RouteError() {
-  // React Router inyecta error en useRouteError, pero como fallback mostramos genérico
   return (
     <div style={{ padding: 16 }}>
       <h1 style={{ fontWeight: 600, marginBottom: 8 }}>Algo salió mal</h1>
-      <p>Revisa la consola del navegador y la respuesta de la API.</p>
+      <p>Revisa consola/Network para ver el detalle del error.</p>
     </div>
   );
 }
