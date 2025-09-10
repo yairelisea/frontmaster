@@ -8,7 +8,15 @@ import { motion } from 'framer-motion';
 import { useToast } from '@/components/ui/use-toast';
 import { CampaignTable } from '@/components/user/campaigns/CampaignTable';
 import { Link, useLocation } from 'react-router-dom';
-import { fetchCampaigns, analyzeCampaign, recoverCampaign } from '@/lib/api';
+ import {
+     fetchCampaigns,
+     analyzeCampaign,
+     recoverCampaign,
+     searchLocal,
+     normalizeAnalysis,
+     cacheKeyForCampaign,
+     saveAnalysisCache,
+   } from '@/lib/api';
 import * as report from '@/lib/report';
 import { downloadAnalysisPDFViaAPI } from "@/lib/report";
 
@@ -229,77 +237,77 @@ const UserCampaignsPage = () => {
     }
   }
 
-  // Ejecutar recuperación de campaña y refrescar análisis en pantalla
-  async function handleRecoverCampaign(target) {
-    // target puede ser un id (string) o el objeto campaña
-    const campaignId = typeof target === 'string' ? target : (target?.id || null);
-    if (!campaignId) return;
-
-    setRecovering(true);
-    setAnalyzingId(campaignId); // muestra spinner en la fila si aplica
-    try {
-      // 1) Ejecuta la recuperación en el backend
-      const rec = await recoverCampaign(campaignId);
-      console.log('[recoverCampaign] raw response:', rec);
-
-      // 2) Ubica la campaña en memoria o usa la que esté seleccionada
-      const currentList = Array.isArray(campaigns) ? campaigns : [];
-      const camp = currentList.find((c) => c.id === campaignId) || analysisCampaign || null;
-
-      // 3) Normaliza lo que regrese el backend
-      let newAnalysis = normalizeAnalysis(rec);
-
-      // 3.1) Acepta también formatos alternos comunes
-      if (!newAnalysis) {
-        const alt = rec?.data || rec?.result || null;
-        if (alt && typeof alt === 'object') newAnalysis = normalizeAnalysis(alt);
-      }
-
-      // 4) Si sigue vacío, como fallback vuelve a analizar ahora
-      if ((!newAnalysis || !Array.isArray(newAnalysis.items) || newAnalysis.items.length === 0) && camp) {
-        try {
-          const res = await analyzeCampaign(camp);
-          newAnalysis = normalizeAnalysis(res) || res || null;
-        } catch (e) {
-          console.error('analyzeCampaign (fallback) error:', e);
-        }
-      }
-
-      // 5) Si logramos obtener análisis, muéstralo YA y guarda en cache local
-      if (newAnalysis && camp) {
-        setAnalysisCampaign(camp);
-        setAnalysisData(newAnalysis);
-        try { localStorage.setItem(`${CACHE_PREFIX}${camp.id}`, JSON.stringify(newAnalysis)); } catch {}
-
-        const recoveredCount = Array.isArray(newAnalysis.items) ? newAnalysis.items.length : 0;
-        toast({
-          title: 'Análisis actualizado',
-          description: recoveredCount > 0
-            ? `Se recuperaron ${recoveredCount} artículos para “${camp.name}”.`
-            : `Recuperación ejecutada, pero sin notas nuevas.`,
-          className: 'bg-brand-green text-white',
-        });
-      } else {
-        toast({
-          title: 'Recuperación completada',
-          description: 'No se obtuvieron notas. Intenta nuevamente más tarde.',
-        });
-      }
-
-      // 6) Recarga campañas (no bloquea la UI)
-      loadCampaigns().catch(() => {});
-    } catch (err) {
-      console.error('recoverCampaign error:', err);
-      toast({
-        title: 'Error en recuperación',
-        description: err?.message || 'No se pudo ejecutar la recuperación.',
-        variant: 'destructive',
-      });
-    } finally {
-      setAnalyzingId(null);
-      setRecovering(false);
-    }
-  }
+  const handleRecoverCampaign = async (campaignOrId) => {
+       // Asegúrate de pasar SIEMPRE el objeto campaña al onClick, no el objeto completo envuelto/extraño.
+       const camp = typeof campaignOrId === 'string'
+        ? (Array.isArray(campaigns) ? campaigns.find(c => c.id === campaignOrId) : null)
+         : campaignOrId;
+       const campaignId = camp?.id;
+       if (!campaignId) return;
+    
+       setRecovering(true);
+       try {
+         // 1) Intento de recuperación en backend (puede devolver solo meta)
+         const rec = await recoverCampaign(campaignId);
+         console.log('[recoverCampaign] raw response:', rec);
+    
+         // Extrae items de distintas formas posibles
+         const recItems =
+           rec?.items ||
+           rec?.analysis?.items ||
+           rec?.data?.items ||
+         [];
+    
+         let finalAnalysis = null;
+    
+         if (Array.isArray(recItems) && recItems.length > 0) {
+           // 2a) Si backend ya nos dio items, normaliza y pinta
+           finalAnalysis = normalizeAnalysis({ items: recItems });
+         } else {
+           // 2b) Fallback inmediato: búsqueda local ad-hoc con datos de la campaña
+           const adHoc = await searchLocal({
+             query: camp.query,
+            city: camp.city_keywords || camp.city || '',
+             country: camp.country || 'MX',
+             lang: camp.lang || 'es-419',
+             days_back: camp.days_back ?? 14,
+             limit: camp.size ?? 25,
+           });
+           console.log('[searchLocal fallback] result:', adHoc);
+           finalAnalysis = normalizeAnalysis({ items: adHoc?.items || [] });
+         }
+    
+         // 3) Pinta en UI y cachea
+         setAnalysisCampaign(camp);
+         setAnalysisData(finalAnalysis);
+         try {
+           const cacheKey = cacheKeyForCampaign(camp);
+           if (cacheKey) {
+             saveAnalysisCache(cacheKey, finalAnalysis, {
+               campaignId: camp.id,
+               campaignName: camp.name,
+             });
+           }
+         } catch {}
+    
+         const count = Array.isArray(finalAnalysis?.items) ? finalAnalysis.items.length : 0;
+         toast({
+           title: 'Análisis actualizado',
+           description: count > 0
+             ? `Se obtuvieron ${count} notas para “${camp.name}”.`
+             : 'Recuperación ejecutada, sin notas nuevas.',
+           className: 'bg-brand-green text-white',
+         });
+    
+         // 4) Refresca campañas sin bloquear UI
+         loadCampaigns().catch(() => {});
+       } catch (e) {
+         console.error('handleRecoverCampaign error:', e);
+         toast({ title: 'Error', description: String(e?.message || e) });
+       } finally {
+         setRecovering(false);
+       }
+     };
 
   return (
     <motion.div
