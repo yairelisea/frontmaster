@@ -375,15 +375,28 @@ export async function analyzeNews({
   return normalizeAnalysis(json);
 }
 
-export async function analyzeCampaign(campaign) {
-  return analyzeNews({
-    q: campaign.query,
-    size: campaign.size ?? 25,
-    days_back: campaign.days_back ?? 14,
-    lang: campaign.lang ?? "es-419",
-    country: campaign.country ?? "MX",
-    overall: true,
-  });
+// ========= Local Search (POST /search-local) =========
+export async function searchLocal({
+  query,
+  city = "",
+  country = "MX",
+  lang = "es-419",
+  days_back = 20,
+  limit = 50,
+}) {
+  if (!API) throw new Error("VITE_API_URL no está definido");
+  const body = { query, city, country, lang, days_back, limit };
+
+  const res = await fetch(`${API}/search-local`, withHeaders({
+    method: "POST",
+    body: JSON.stringify(body),
+  }));
+
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`searchLocal failed: ${res.status} ${txt}`);
+  }
+  return res.json(); // { query, city, country, count, items }
 }
 
 // ========= Analysis Cache (localStorage) =========
