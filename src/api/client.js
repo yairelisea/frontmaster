@@ -1,71 +1,69 @@
-// --- al inicio del archivo ---
+// src/api/client.js
+import { endpoints } from "./endpoints";
+
+// Base y helpers
 export const API_BASE =
-  (import.meta && import.meta.env && import.meta.env.VITE_API_URL) ||
+  (import.meta?.env?.VITE_API_URL) ||
   window?.__API_BASE__ ||
   "";
 
 const getToken = () =>
   localStorage.getItem("access_token") ||
-  localStorage.getItem("token") ||
-  "";
+  localStorage.getItem("token") || "";
 
-// Respuesta JSON con fallback a texto para depurar errores
-const j = async (r) => {
-  try { return await r.json(); } catch { return {}; }
-};
+const j = async (r) => { try { return await r.json(); } catch { return {}; } };
 
-// --- reemplaza/asegura esta función ---
+// ---------- Meta
+export async function health() {
+  const r = await fetch(endpoints.health());
+  return r.ok;
+}
+
+// ---------- Auth
+export async function login(email, name) {
+  const r = await fetch(endpoints.login(), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, name }),
+  });
+  if (!r.ok) {
+    const txt = await r.text().catch(()=> "");
+    throw new Error(`POST /auth/login ${r.status} ${txt}`);
+  }
+  return j(r); // { access_token, token_type, user }
+}
+
+// ---------- Campaigns
 export async function fetchCampaigns() {
-  const r = await fetch(`${API_BASE}/campaigns`, {
+  const r = await fetch(endpoints.campaigns(), {
     headers: { Authorization: `Bearer ${getToken()}` },
   });
   if (!r.ok) {
-    const txt = await r.text().catch(() => "");
+    const txt = await r.text().catch(()=> "");
     throw new Error(`GET /campaigns ${r.status} ${txt}`);
   }
-  return j(r);
+  return j(r); // CampaignOut[]
 }
 
-// (Opcional) si necesitas también:
-export async function fetchCampaignItems(id) {
-  const r = await fetch(`${API_BASE}/campaigns/${id}/items`, {
+export async function fetchCampaignById(id) {
+  const r = await fetch(endpoints.campaignById(id), {
     headers: { Authorization: `Bearer ${getToken()}` },
   });
-  if (!r.ok) throw new Error(`GET /campaigns/${id}/items ${r.status}`);
-  return j(r);
-}
-export async function fetchCampaignAnalyses(id) {
-  const r = await fetch(`${API_BASE}/campaigns/${id}/analyses`, {
-    headers: { Authorization: `Bearer ${getToken()}` },
-  });
-  if (!r.ok) throw new Error(`GET /campaigns/${id}/analyses ${r.status}`);
-  return j(r);
+  if (!r.ok) {
+    const txt = await r.text().catch(()=> "");
+    throw new Error(`GET /campaigns/${id} ${r.status} ${txt}`);
+  }
+  return j(r); // CampaignOut
 }
 
-export async function adminRecover(campaignId) {
-  const r = await fetch(`${API_BASE}/admin/campaigns/${campaignId}/recover`, {
+// ---------- Sources
+export async function addSourceToCampaign(campaignId, { type="NEWS", url }) {
+  const r = await fetch(endpoints.addSource(campaignId), {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${localStorage.getItem("access_token") || localStorage.getItem("token") || ""}`,
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${getToken()}`,
     },
+    body: JSON.stringify({ type, url, campaignId }),
   });
-  if (!r.ok) {
-    const txt = await r.text().catch(() => "");
-    throw new Error(`POST /admin/campaigns/${campaignId}/recover ${r.status} ${txt}`);
-  }
-  try { return await r.json(); } catch { return {}; }
-}
-
-export async function adminBuildReport(campaignId) {
-  const r = await fetch(`${API_BASE}/admin/campaigns/${campaignId}/report`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${localStorage.getItem("access_token") || localStorage.getItem("token") || ""}`,
-    },
-  });
-  if (!r.ok) {
-    const txt = await r.text().catch(() => "");
-    throw new Error(`POST /admin/campaigns/${campaignId}/report ${r.status} ${txt}`);
-  }
-  try { return await r.json(); } catch { return {}; }
-}
+  if (!r
