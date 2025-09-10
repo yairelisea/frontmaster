@@ -57,6 +57,7 @@ export default function AdminCampaignsPage() {
               <th className="text-left py-2 px-3 font-medium">Size</th>
               <th className="text-left py-2 px-3 font-medium">Días</th>
               <th className="text-left py-2 px-3 font-medium">País</th>
+              <th className="text-left py-2 px-3 font-medium">Acciones</th>
               <th className="text-left py-2 px-3 font-medium">Creada</th>
             </tr>
           </thead>
@@ -78,12 +79,65 @@ export default function AdminCampaignsPage() {
                   <td className="py-2 px-3">
                     {c.createdAt ? new Date(c.createdAt).toLocaleString() : "—"}
                   </td>
+                  <td className="py-2 px-3">
++       <Actions c={c} onDone={load} />
++     </td>
                 </tr>
               ))
             )}
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+function Actions({ c, onDone }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  const doRecover = async () => {
+    setBusy(true); setMsg("");
+    try {
+      await adminRecover(c.id);
+      setMsg("Recuperada");
+      onDone && onDone(); // recarga lista
+    } catch (e) {
+      setMsg("Error recover");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const doPDF = async () => {
+    setBusy(true); setMsg("");
+    try {
+      const r = await adminBuildReport(c.id);
+      if (r?.url) window.open(r.url, "_blank");
+      else setMsg("PDF generado");
+    } catch (e) {
+      setMsg("Error PDF");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex gap-2 items-center">
+      <button
+        onClick={doRecover}
+        disabled={busy}
+        className="px-3 py-1.5 rounded bg-black text-white text-xs"
+      >
+        {busy ? "…" : "Recuperar"}
+      </button>
+      <button
+        onClick={doPDF}
+        disabled={busy}
+        className="px-3 py-1.5 rounded bg-gray-800 text-white text-xs"
+      >
+        PDF
+      </button>
+      {msg && <span className="text-xs text-gray-600">{msg}</span>}
     </div>
   );
 }

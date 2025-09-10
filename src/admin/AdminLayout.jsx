@@ -17,6 +17,7 @@ export default function AdminLayout() {
           <div className="font-semibold">Panel Admin</div>
           <nav className="flex gap-4 text-sm">
             <Link to="/admin/campaigns" className="hover:underline">Mis campañas</Link>
+            <Link to="/admin/users" className="hover:underline">Usuarios</Link>
           </nav>
         </div>
       </header>

@@ -41,3 +41,4 @@ export async function fetchCampaignAnalyses(id) {
   if (!r.ok) throw new Error(`GET /campaigns/${id}/analyses ${r.status}`);
   return j(r);
 }
+
