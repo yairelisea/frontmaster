@@ -1,18 +1,24 @@
-import AdminLayout from "./layouts/AdminLayout";
-import UsersPage from "./admin/UsersPage";
-import CampaignsPage from "./admin/AdminCampaignsPage";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-
-
 // src/main.jsx
 import React from "react";
 import ReactDOM from "react-dom/client";
-import App from "@/App";
-import "@/index.css";
-import { AuthProvider } from "@/context/AuthContext";
+import { createBrowserRouter, RouterProvider } from "react-router-dom";
 
+// Páginas existentes de tu app (ajusta si tus rutas cambian)
+import App from "./App.jsx";
+
+// Admin
+import AdminLayout from "./admin/AdminLayout.jsx";
+import AdminCampaignsPage from "./pages/admin/AdminCampaignsPage.jsx";
+import AdminCampaignDetailPage from "./pages/admin/AdminCampaignDetailPage.jsx";
+
+// (Opcional) proveedor de auth si ya lo usas; comenta si no existe
+// import { AuthProvider } from "./auth/AuthContext.jsx";
 
 const router = createBrowserRouter([
+  {
+    path: "/",
+    element: <App />,
+  },
   {
     path: "/admin",
     element: <AdminLayout />,
@@ -21,11 +27,12 @@ const router = createBrowserRouter([
       { path: "campaigns/:id", element: <AdminCampaignDetailPage /> },
     ],
   },
+]);
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <AuthProvider>
-      <App />
-    </AuthProvider>
+    {/* <AuthProvider> */}
+    <RouterProvider router={router} />
+    {/* </AuthProvider> */}
   </React.StrictMode>
 );
