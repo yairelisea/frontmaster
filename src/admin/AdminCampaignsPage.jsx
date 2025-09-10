@@ -6,7 +6,7 @@ import {
   adminRecover,
   adminProcessAnalyses,
   adminBuildReport,
-} from "../api/client.js";
+} from "@/api/client.js";
 
 export default function ActiveCampaignsPage() {
   const { id } = useParams();

@@ -7,7 +7,7 @@ import {
   adminRecover,
   adminProcessAnalyses,
   adminBuildReport,
-} from "../api/client.js";
+} from "@/api/client.js";
 
 export default function AdminCampaignsPage() {
   const [list, setList] = useState([]);
