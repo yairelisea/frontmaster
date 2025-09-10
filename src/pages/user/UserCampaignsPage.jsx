@@ -30,6 +30,37 @@ const UserCampaignsPage = () => {
   const [exporting, setExporting] = useState(false);
   const [recovering, setRecovering] = useState(false);
 
+  // Normaliza distintos formatos de análisis a un shape único que la UI entiende
+  function normalizeAnalysis(input) {
+    if (!input || typeof input !== 'object') return null;
+
+    // Si viene como { analysis: {...} }
+    const base = input.analysis && typeof input.analysis === 'object' ? input.analysis : input;
+
+    // Posibles llaves para items
+    const items =
+      (Array.isArray(base.items) && base.items) ||
+      (Array.isArray(input.items) && input.items) || [];
+
+    // Otras propiedades comunes (con fallbacks)
+    const summary = base.summary ?? input.summary ?? null;
+    const sentiment_label = base.sentiment_label ?? input.sentiment_label ?? null;
+    const sentiment_score = base.sentiment_score ?? input.sentiment_score ?? null;
+    const sentiment_score_pct = base.sentiment_score_pct ?? input.sentiment_score_pct ?? null;
+    const topics = Array.isArray(base.topics) ? base.topics : (Array.isArray(input.topics) ? input.topics : []);
+
+    // Si no hay items, considera nulo para forzar fallback
+    if (!Array.isArray(items) || items.length === 0) return null;
+
+    return {
+      items,
+      summary,
+      sentiment_label,
+      sentiment_score,
+      sentiment_score_pct,
+      topics,
+    };
+  }
   // ---- Cache helpers (localStorage) ----
   const CACHE_PREFIX = 'bbx:analysis:'; // bbx:analysis:<campaignId>
 
@@ -117,9 +148,10 @@ const UserCampaignsPage = () => {
 
     try {
       const res = await analyzeCampaign(campaign);
-      setAnalysisData(res);
+      const normalized = normalizeAnalysis(res) || res || null;
+      setAnalysisData(normalized);
       // cache para "Ver más"
-      saveCachedAnalysis(campaign, res);
+      saveCachedAnalysis(campaign, normalized);
       toast({
         title: 'Análisis completado',
         description: `Se analizó "${campaign.name}"`,
@@ -162,8 +194,9 @@ const UserCampaignsPage = () => {
     try {
       setAnalyzingId(campaign.id);
       const res = await analyzeCampaign(campaign);
-      setAnalysisData(res);
-      saveCachedAnalysis(campaign, res);
+      const normalized = normalizeAnalysis(res) || res || null;
+      setAnalysisData(normalized);
+      saveCachedAnalysis(campaign, normalized);
       toast({
         title: 'Análisis completado',
         description: `Se analizó “${campaign.name}”.`,
@@ -208,32 +241,15 @@ const UserCampaignsPage = () => {
       const currentList = Array.isArray(campaigns) ? campaigns : [];
       const camp = currentList.find((c) => c.id === campaignId) || analysisCampaign || null;
 
-      // 3) Intenta construir un objeto de análisis con lo que devuelva el backend
-      //    Soporta dos formatos:
-      //    A) { analysis: {...} }
-      //    B) { items:[...], summary, sentiment_label, sentiment_score, sentiment_score_pct, topics }
-      let newAnalysis = null;
-      if (rec && typeof rec === 'object') {
-        if (rec.analysis && typeof rec.analysis === 'object') {
-          newAnalysis = rec.analysis;
-        } else if (Array.isArray(rec.items)) {
-          newAnalysis = {
-            items: rec.items,
-            summary: rec.summary ?? null,
-            sentiment_label: rec.sentiment_label ?? null,
-            sentiment_score: rec.sentiment_score ?? null,
-            sentiment_score_pct: rec.sentiment_score_pct ?? null,
-            topics: Array.isArray(rec.topics) ? rec.topics : [],
-          };
-        }
-      }
+      // 3) Normaliza lo que regrese el backend
+      let newAnalysis = normalizeAnalysis(rec);
 
       // 4) Si el backend no regresó nada util, como fallback vuelve a analizar ahora
       if (!newAnalysis || !Array.isArray(newAnalysis.items)) {
         if (camp) {
           setAnalyzingId(camp.id);
           const res = await analyzeCampaign(camp);
-          newAnalysis = res;
+          newAnalysis = normalizeAnalysis(res) || res || null;
         }
       }
 
