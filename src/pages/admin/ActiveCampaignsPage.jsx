@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { fetchCampaignItems, fetchCampaignAnalyses } from "../../api/client.js";
+import { fetchCampaignItems, fetchCampaignAnalyses } from "../api/client.js";
 
 export default function AdminCampaignDetailPage() {
   const { id } = useParams();
