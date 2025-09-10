@@ -1,56 +1,46 @@
-// en src/main.jsx
+// src/main.jsx
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { createBrowserRouter, RouterProvider, useRouteError, isRouteErrorResponse } from "react-router-dom";
-import App from "./App.jsx";
-import AdminLayout from "./admin/AdminLayout.jsx";
-import AdminCampaignsPage from "./admin/AdminCampaignsPage.jsx";
-import AdminCampaignDetailPage from "./pages/admin/AdminCampaignDetailPage.jsx";
+import { createBrowserRouter, RouterProvider, Navigate } from "react-router-dom";
 
-// NUEVO: Error detallado
-function RouteError() {
-  const err = useRouteError();
-  let title = "Algo salió mal";
-  let details = "";
+import RequireAuth from "@/auth/RequireAuth.jsx";
+import AuthLayout from "@/layouts/AuthLayout.jsx";
+import LoginPage from "@/pages/auth/LoginPage.jsx";
 
-  if (isRouteErrorResponse(err)) {
-    title = `Error ${err.status}`;
-    details = JSON.stringify(err.data || {}, null, 2);
-  } else if (err instanceof Error) {
-    title = err.name || "Error";
-    details = err.message || String(err);
-  } else {
-    details = JSON.stringify(err, null, 2);
-  }
-
-  return (
-    <div style={{ padding: 24, fontFamily: "system-ui, sans-serif" }}>
-      <h1 style={{ fontWeight: 700, marginBottom: 8 }}>{title}</h1>
-      <pre style={{ whiteSpace: "pre-wrap", background: "#f6f8fa", padding: 12, borderRadius: 8, fontSize: 12 }}>
-        {details}
-      </pre>
-      <p style={{ marginTop: 8, fontSize: 12, color: "#555" }}>
-        Revisa que <code>VITE_API_URL</code> esté bien y que tengas un <code>access_token</code> en localStorage.
-      </p>
-    </div>
-  );
-}
+import AdminLayout from "@/admin/AdminLayout.jsx";
+import AdminCampaignsPage from "@/admin/AdminCampaignsPage.jsx";
+import AdminCampaignDetailPage from "@/pages/admin/AdminCampaignDetailPage.jsx";
 
 const router = createBrowserRouter([
-  { path: "/", element: <App />, errorElement: <RouteError /> },
+  // Redirige la raíz al Admin (opcional pero útil hoy)
+  { path: "/", element: <Navigate to="/admin/campaigns" replace /> },
+
+  // Bloque /auth con tu AuthLayout (login público)
+  {
+    path: "/auth",
+    element: <AuthLayout />,
+    children: [
+      { path: "login", element: <LoginPage /> },
+    ],
+  },
+
+  // Bloque /admin protegido
   {
     path: "/admin",
-    element: <AdminLayout />,
-    errorElement: <RouteError />,
+    element: <RequireAuth />,
     children: [
-      { path: "campaigns", element: <AdminCampaignsPage />, errorElement: <RouteError /> },
-      { path: "campaigns/:id", element: <AdminCampaignDetailPage />, errorElement: <RouteError /> },
+      {
+        path: "",
+        element: <AdminLayout />,
+        children: [
+          { path: "campaigns", element: <AdminCampaignsPage /> },
+          { path: "campaigns/:id", element: <AdminCampaignDetailPage /> },
+        ],
+      },
     ],
   },
 ]);
 
 ReactDOM.createRoot(document.getElementById("root")).render(
-  <React.StrictMode>
-    <RouterProvider router={router} />
-  </React.StrictMode>
+  <React.StrictMode><RouterProvider router={router} /></React.StrictMode>
 );

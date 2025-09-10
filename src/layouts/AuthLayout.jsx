@@ -1,15 +1,19 @@
 // src/layouts/AuthLayout.jsx
 import React from "react";
-import { Outlet, Navigate } from "react-router-dom";
+import { Outlet, Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { motion } from "framer-motion";
 
 const AuthLayout = () => {
-  const { isAuthenticated } = useAuth(); // <- tu contexto
+  const { isAuthenticated } = useAuth();
+  const location = useLocation();
 
-  // Si ya hay sesión, salimos de /auth/* y vamos al dashboard
+  // Si venías de una ruta protegida (RequireAuth pasa state.from), regresa ahí;
+  // si no, ve al Admin seguro.
+  const redirectTo = location.state?.from || "/admin/campaigns";
+
   if (isAuthenticated) {
-    return <Navigate to="/user/dashboard" replace />;
+    return <Navigate to={redirectTo} replace />;
   }
 
   const logoUrl =
@@ -27,11 +31,11 @@ const AuthLayout = () => {
           <img src={logoUrl} alt="BLACKBOX MONITOR Logo" className="h-16 object-contain" />
         </div>
 
-        <div className="bg-card p-8 rounded-xl shadow-2xl border border-gray-200">
+        <div className="bg-white p-8 rounded-xl shadow-2xl border border-gray-200">
           <Outlet />
         </div>
 
-        <p className="mt-8 text-center text-sm text-muted-foreground">
+        <p className="mt-8 text-center text-sm text-gray-500">
           &copy; {new Date().getFullYear()} BLACKBOX MONITOR. Todos los derechos reservados.
         </p>
       </motion.div>
