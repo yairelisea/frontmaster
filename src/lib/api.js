@@ -6,19 +6,50 @@ const API = (import.meta.env.VITE_API_URL || "https://masterback.onrender.com").
 const FAKE_USER = import.meta.env.VITE_FAKE_USER_ID || "dev-user-1";
 const ADMIN_HEADER = String(import.meta.env.VITE_ADMIN_HEADER) === "true";
 
-// ========= Auth (token en localStorage) =========
-const TOKEN_KEY = "auth_token";
+// ========= Auth (token en localStorage / sessionStorage) =========
+const TOKEN_KEYS = [
+  "auth_token",         // preferido por la app
+  "access_token",       // común en APIs
+  "token"               // fallback genérico
+];
+
+function _readFrom(storage, keys) {
+  try {
+    for (const k of keys) {
+      const v = storage.getItem(k);
+      if (v && typeof v === "string" && v.trim()) return v.trim();
+    }
+  } catch {}
+  return null;
+}
 
 export function getAuthToken() {
-  return localStorage.getItem(TOKEN_KEY) || null;
+  // 1) localStorage (persistente)
+  let tok = _readFrom(localStorage, TOKEN_KEYS);
+  if (tok) return tok;
+  // 2) sessionStorage (por si el login lo guardó ahí en algún flujo)
+  tok = _readFrom(sessionStorage, TOKEN_KEYS);
+  return tok;
 }
 
 export function setAuthToken(token) {
-  if (token) localStorage.setItem(TOKEN_KEY, token);
+  if (!token) return;
+  const clean = String(token).trim();
+  if (!clean) return;
+  try {
+    localStorage.setItem("auth_token", clean);
+    // Mantén sincronizado el resto de posibles claves conocidas
+    localStorage.setItem("access_token", clean);
+    localStorage.setItem("token", clean);
+    try { sessionStorage.setItem("auth_token", clean); } catch {}
+  } catch {}
 }
 
 export function clearAuthToken() {
-  localStorage.removeItem(TOKEN_KEY);
+  try {
+    for (const k of TOKEN_KEYS) localStorage.removeItem(k);
+    try { for (const k of TOKEN_KEYS) sessionStorage.removeItem(k); } catch {}
+  } catch {}
 }
 
 // Header Authorization si hay token
@@ -42,25 +73,31 @@ function baseJsonHeaders(extra = {}) {
  * 3) x-admin opcional para vistas admin (si pones VITE_ADMIN_HEADER=true)
  */
 function withHeaders(init = {}) {
-  const headers = new Headers(init.headers || {});
+  const base = init || {};
+  const headers = new Headers(base.headers || {});
 
-  // Auth
+  // Auth: siempre que exista token lo mandamos como Bearer
   const token = getAuthToken();
-  if (token) headers.set("Authorization", `Bearer ${token}`);
+  if (token && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
 
-  // Fallback dev: x-user-id si no hay token
-  if (!token && FAKE_USER) headers.set("x-user-id", FAKE_USER);
+  // Fallback dev: x-user-id si no hay token (útil en dev/staging)
+  if (!token && FAKE_USER && !headers.has("x-user-id")) {
+    headers.set("x-user-id", FAKE_USER);
+  }
 
   // Admin header opcional
-  if (ADMIN_HEADER) headers.set("x-admin", "true");
+  if (ADMIN_HEADER && !headers.has("x-admin")) headers.set("x-admin", "true");
 
-  // Content-Type por defecto solo si no es GET/HEAD y no hay Content-Type ya
-  const method = (init.method || "GET").toUpperCase();
-  if (!headers.has("Content-Type") && method !== "GET" && method !== "HEAD" && init.body != null) {
+  // Content-Type por defecto solo si aplica
+  const method = (base.method || "GET").toUpperCase();
+  const hasBody = base.body != null && base.body !== undefined;
+  if (!headers.has("Content-Type") && method !== "GET" && method !== "HEAD" && hasBody) {
     headers.set("Content-Type", "application/json");
   }
 
-  return { ...init, headers };
+  return { ...base, headers };
 }
 
 // fetch con timeout para evitar colgados en edge
