@@ -108,6 +108,10 @@ export async function getCampaign(id) {
   return apiFetch(`/campaigns/${id}`);
 }
 
+export async function createCampaign(payload) {
+  return apiFetch(`/campaigns`, { method: "POST", body: payload });
+}
+
 // Alias (NO duplicar funciones)
 export const fetchCampaigns = listCampaigns;
 export const fetchCampaignById = getCampaign;
@@ -172,6 +176,59 @@ export async function fetchCampaignItems(id, params) {
 export async function fetchCampaignAnalyses(id) {
   // Si más adelante expones GET analyses, cámbialo aquí.
   return [];
+}
+
+// =====================
+// Analysis helpers
+// =====================
+export function normalizeAnalysis(res) {
+  if (!res || typeof res !== "object") return null;
+  const raw = res;
+  const data = res.analysis || res.data || res;
+
+  const items =
+    data.items ||
+    res.items ||
+    (Array.isArray(res) ? res : []) ||
+    [];
+
+  const summary = data.summary || data.generated_summary || "";
+  const sentiment_label =
+    data.sentiment_label ||
+    data.sentiment?.label ||
+    null;
+  const sentiment_score =
+    data.sentiment_score ??
+    data.sentiment?.score ??
+    null;
+  let sentiment_score_pct =
+    data.sentiment_score_pct ??
+    data.sentiment?.score_pct ??
+    null;
+  if (sentiment_score_pct == null && typeof sentiment_score === "number") {
+    sentiment_score_pct = ((sentiment_score + 1) / 2) * 100;
+  }
+  const topics = data.topics || data.keywords || [];
+
+  return {
+    summary,
+    sentiment_label,
+    sentiment_score,
+    sentiment_score_pct,
+    topics: Array.isArray(topics) ? topics : [],
+    items: Array.isArray(items) ? items : [],
+    raw,
+  };
+}
+
+export function cacheKeyForCampaign(campaign) {
+  return campaign?.id ? `bbx:analysis:${campaign.id}` : null;
+}
+
+export function saveAnalysisCache(key, analysis, meta = {}) {
+  try {
+    localStorage.setItem(key, JSON.stringify({ analysis, meta }));
+  } catch {}
 }
 
 // =====================
