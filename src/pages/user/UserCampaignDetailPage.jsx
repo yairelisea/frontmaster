@@ -8,6 +8,7 @@ import {
   fetchCampaignAnalyses,
 } from "@/lib/api";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { analyzeNewsForCampaign, fetchNewsForCampaign } from "@/lib/api";
 
 export default function UserCampaignDetailPage() {
   const { campaignId } = useParams();
@@ -30,7 +31,34 @@ export default function UserCampaignDetailPage() {
     try {
       const c = await fetchCampaignById(id);
       setCampaign(c || null);
-      const o = await fetchCampaignOverview(id).catch(() => null);
+      let o = null;
+      try {
+        o = await fetchCampaignOverview(id);
+      } catch {}
+      if (!o) {
+        try {
+          const res = await analyzeNewsForCampaign(c, { size: 50, overall: true });
+          const items = Array.isArray(res?.items) ? res.items : [];
+          const sentiments = items
+            .map((it) => (typeof it.sentiment === 'number' ? it.sentiment : (typeof it.llm?.sentiment_score === 'number' ? it.llm.sentiment_score : null)))
+            .filter((v) => v != null);
+          const avg_sentiment = sentiments.length ? sentiments.reduce((a,b)=>a+b,0)/sentiments.length : null;
+          const topicCounts = new Map();
+          items.forEach((it) => {
+            const topics = Array.isArray(it.topics) ? it.topics : (Array.isArray(it.llm?.topics) ? it.llm.topics : []);
+            topics.forEach((t) => topicCounts.set(t, (topicCounts.get(t)||0)+1));
+          });
+          const top_topics = Array.from(topicCounts.entries()).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([topic,count])=>({topic,count}));
+          o = {
+            total_items: items.length,
+            analyzed_items: items.length,
+            pending_items: 0,
+            avg_sentiment,
+            top_topics,
+            last_run: null,
+          };
+        } catch {}
+      }
       setOverview(o);
     } catch (e) {
       setErr(e?.message || "Error cargando datos");
@@ -42,15 +70,54 @@ export default function UserCampaignDetailPage() {
   const loadItems = async () => {
     try {
       const data = await fetchCampaignItems(id, itemFilters);
-      setItems(data || { count: 0, page: 1, per_page: 25, items: [] });
-    } catch {}
+      if (data && typeof data === 'object' && Array.isArray(data.items)) {
+        setItems(data);
+        return;
+      }
+      throw new Error('no-items');
+    } catch {
+      try {
+        const news = await fetchNewsForCampaign(campaign, { size: itemFilters.per_page, days_back: campaign?.days_back });
+        const items = (news?.items || []).map((it, idx) => ({
+          id: it.id || String(idx),
+          title: it.title,
+          url: it.link || it.url,
+          source: it.source,
+          snippet: it.summary,
+          publishedAt: it.published_at,
+          status: null,
+        }));
+        setItems({ count: items.length, page: 1, per_page: itemFilters.per_page, items });
+      } catch {}
+    }
   };
 
   const loadAnalyses = async () => {
     try {
       const data = await fetchCampaignAnalyses(id, analysisFilters);
-      setAnalyses(data || { count: 0, page: 1, per_page: 25, items: [] });
-    } catch {}
+      if (data && typeof data === 'object' && Array.isArray(data.items)) {
+        setAnalyses(data);
+        return;
+      }
+      throw new Error('no-analyses');
+    } catch {
+      try {
+        const res = await analyzeNewsForCampaign(campaign, { size: analysisFilters.per_page, days_back: campaign?.days_back, overall: true });
+        const items = Array.isArray(res?.items) ? res.items.map((it, idx) => ({
+          id: it.id || String(idx),
+          itemId: it.itemId || null,
+          sentiment: it.sentiment ?? it.llm?.sentiment_score ?? null,
+          tone: it.tone || null,
+          topics: it.topics || it.llm?.topics || [],
+          summary: it.summary || it.llm?.summary || '',
+          entities: it.entities || it.llm?.entities || null,
+          stance: it.stance || null,
+          perception: it.perception || null,
+          createdAt: it.createdAt || null,
+        })) : [];
+        setAnalyses({ count: items.length, page: 1, per_page: analysisFilters.per_page, items });
+      } catch {}
+    }
   };
 
   useEffect(() => { loadBase(); }, [id]);
@@ -241,4 +308,3 @@ function Pagination({ page, totalPages, onPage }) {
     </div>
   );
 }
-

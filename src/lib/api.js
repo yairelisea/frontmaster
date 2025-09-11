@@ -278,6 +278,32 @@ export async function adminFetchCampaignOverview(id) {
 }
 
 // =====================
+// Fallback helpers (usar endpoints existentes)
+// =====================
+export async function fetchNewsForCampaign(campaign, params = {}) {
+  const qs = new URLSearchParams();
+  const { size = campaign?.size ?? 25, days_back = campaign?.days_back ?? 14, lang = campaign?.lang || "es-419", country = campaign?.country || "MX" } = params || {};
+  if (campaign?.query) qs.set("q", campaign.query);
+  qs.set("size", String(size));
+  qs.set("days_back", String(days_back));
+  qs.set("lang", lang);
+  qs.set("country", country);
+  return apiFetch(`/news/news?${qs.toString()}`);
+}
+
+export async function analyzeNewsForCampaign(campaign, params = {}) {
+  const qs = new URLSearchParams();
+  const { size = campaign?.size ?? 25, days_back = campaign?.days_back ?? 14, overall = true, lang = campaign?.lang || "es-419", country = campaign?.country || "MX" } = params || {};
+  if (campaign?.query) qs.set("q", campaign.query);
+  qs.set("size", String(size));
+  qs.set("days_back", String(days_back));
+  qs.set("overall", String(overall));
+  qs.set("lang", lang);
+  qs.set("country", country);
+  return apiFetch(`/ai/analyze-news?${qs.toString()}`);
+}
+
+// =====================
 // Analysis helpers
 // =====================
 export function normalizeAnalysis(res) {
