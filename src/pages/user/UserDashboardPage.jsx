@@ -300,17 +300,3 @@ const UserDashboardPage = () => {
 };
 
 export default UserDashboardPage;
-
-// --- Healthcheck / Ping ---
-export async function ping() {
-  const url = `${API_BASE}/health`;
-  try {
-    const r = await fetch(url, { headers: { "Content-Type": "application/json" } });
-    const txt = await r.text().catch(() => "");
-    let data = {};
-    try { data = txt ? JSON.parse(txt) : {}; } catch {}
-    return { ok: r.ok, status: r.status, url, data };
-  } catch (e) {
-    return { ok: false, status: 0, url, error: e?.message || String(e) };
-  }
-}
