@@ -336,39 +336,43 @@ export const AdminAPI = {
     return true;
   },
 };
-// ========= Ingest / Analyses =========
-// (ya existente)
-export async function ingestCampaign(campaignId) {
-  return apiFetch("/ingest/ingest", { method: "POST", body: { campaignId } });
+// ======== Compat con la UI existente (NO DUPLICAR funciones previas) ========
+
+// Aliases
+export const fetchCampaigns = listCampaigns;
+export const fetchCampaignById = getCampaign;
+
+// Healthcheck simple
+export async function ping() {
+  try {
+    const r = await fetch(`${API_BASE}/health`);
+    return r.ok;
+  } catch {
+    return false;
+  }
 }
 
-export async function processPending(campaignId, limit = 200) {
-  const qs = new URLSearchParams();
-  if (campaignId) qs.set("campaignId", campaignId);
-  if (limit) qs.set("limit", String(limit));
-  return apiFetch(`/analyses/process_pending?${qs.toString()}`, { method: "POST" });
-}
-
-export async function recoverCampaign(campaignId) {
-  return apiFetch(`/search-local/campaign/${campaignId}`, { method: "POST" });
-}
-
-// ⬇️ NUEVO: alias que usa tu UI para lanzar análisis de una campaña
+// Lanzar análisis para una campaña (alias de processPending)
 export async function analyzeCampaign(campaignId, limit = 200) {
   return processPending(campaignId, limit);
 }
 
-// ⬇️ NUEVO: búsqueda local ad-hoc (para pruebas/recuperación sin campaignId)
+// Búsqueda local ad-hoc
 export async function searchLocal({
   query,
   city = "",
   country = "MX",
   lang = "es-419",
   days_back = 14,
-  limit = 50,
+  limit = 25,
 }) {
   return apiFetch("/search-local", {
     method: "POST",
     body: { query, city, country, lang, days_back, limit },
   });
 }
+
+// Aliases hacia AdminAPI (si tus vistas los importan así)
+export const adminProcessAnalyses = AdminAPI.processAnalyses;
+export const adminRecover = AdminAPI.recoverCampaign;
+export const adminBuildReport = AdminAPI.buildReport;
