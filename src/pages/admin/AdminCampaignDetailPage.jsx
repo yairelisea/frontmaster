@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
   adminGetCampaign,
+  adminListCampaigns,
   fetchCampaignById,
   adminFetchCampaignOverview,
   adminFetchCampaignItems,
@@ -36,8 +37,14 @@ export default function AdminCampaignDetailPage() {
       try {
         c = await adminGetCampaign(id);
       } catch (e) {
-        // Fallback por si no existe la ruta admin en backend
-        c = await fetchCampaignById(id);
+        // Fallback robusto: intenta listar campañas admin y filtrar por id
+        try {
+          const list = await adminListCampaigns();
+          c = (Array.isArray(list) ? list.find((x) => String(x.id) === String(id)) : null) || null;
+        } catch {
+          // último recurso: endpoint de usuario (puede devolver 403 si no eres owner)
+          c = await fetchCampaignById(id);
+        }
       }
       setCampaign(c || null);
       const o = await adminFetchCampaignOverview(id).catch(() => null);

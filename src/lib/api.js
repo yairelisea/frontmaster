@@ -3,11 +3,11 @@
 // =====================
 // Config
 // =====================
-export const API_BASE =
-  (import.meta.env?.VITE_API_URL || "https://masterback.onrender.com").replace(
-    /\/+$/,
-    ""
-  );
+const RUNTIME_BASE =
+  (typeof window !== "undefined" && window.__API_BASE__) || null;
+export const API_BASE = (
+  RUNTIME_BASE || import.meta.env?.VITE_API_URL || "/api"
+).replace(/\/+$/, "");
 
 // =====================
 // Token helpers

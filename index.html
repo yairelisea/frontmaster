@@ -8,8 +8,9 @@
 		<title>BLACKBOX MONITOR</title>
 	</head>
 	<body>
-		<script>
-			window.__API_BASE__ = 'https://masterback.onrender.com';
+    	<script>
+			// Use Netlify CDN proxy to avoid CORS in production
+			window.__API_BASE__ = '/api';
 		  </script>
 		  
 		<div id="root"></div>
