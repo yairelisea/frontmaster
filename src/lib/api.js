@@ -93,14 +93,33 @@ async function apiFetch(path, { method = "GET", headers = {}, body, asBlob = fal
   return asBlob ? r.blob() : parseJsonSafe(r);
 }
 
+// ========= Healthcheck =========
+export async function ping() {
+  try {
+    const res = await fetch(`${API_BASE}/health`);
+    const txt = await res.text().catch(() => "");
+    let data = {};
+    try { data = txt ? JSON.parse(txt) : {}; } catch {}
+    return { ok: res.ok, status: res.status, url: `${API_BASE}/health`, data };
+  } catch (e) {
+    return { ok: false, status: 0, url: `${API_BASE}/health`, error: e?.message || String(e) };
+  }
+}
+
 // ========= Campaigns =========
 export async function listCampaigns() {
   return apiFetch("/campaigns");
 }
 
+// Alias para compatibilidad con páginas que importan fetchCampaigns
+export const fetchCampaigns = listCampaigns;
+
 export async function getCampaign(id) {
   return apiFetch(`/campaigns/${id}`);
 }
+
+// Alias para compatibilidad con páginas que importan fetchCampaignById
+export const fetchCampaignById = getCampaign;
 
 // ========= Ingest / Analyses =========
 export async function ingestCampaign(campaignId) {
@@ -162,7 +181,8 @@ export async function fetchCampaignItems(id, params) {
 }
 
 export async function fetchCampaignAnalyses(id) {
-  return []; // backend no expone GET de analyses listados aún
+  // El backend aún no expone GET listado de analyses
+  return [];
 }
 
 // ========= Auth endpoints =========
@@ -186,7 +206,6 @@ export async function apiLogin({ email, password, name } = {}) {
     throw new Error(`POST /auth/login -> ${r.status} :: ${text || "Login failed"}`);
   }
 
-  // intenta guardar el token para que el resto de llamadas funcionen de inmediato
   const token =
     data.access_token || data.token || data.accessToken || null;
   if (token) {
@@ -208,6 +227,7 @@ export function apiLogout() {
   } catch {}
   return true;
 }
+
 // ===============================
 // AdminAPI (para UserManagement)
 // ===============================
@@ -254,7 +274,6 @@ export const AdminAPI = {
       method: "PATCH",
       body: JSON.stringify(payload),
     }),
-  // Features/roles por usuario (opcional)
   setFeatures: (userId, features) =>
     _fetchJSON(`${API_BASE}/admin/users/${userId}/features`, {
       method: "PUT",
@@ -296,9 +315,24 @@ export const AdminAPI = {
     if (limit) url.searchParams.set("limit", String(limit));
     return _fetchJSON(url.toString(), { method: "POST" });
   },
-  buildReport: (payload) =>
-    _fetchJSON(`${API_BASE}/reports/pdf`, {
+
+  // Usa el mismo flujo de descarga de PDF
+  buildReport: async (payload, filename = "reporte.pdf") => {
+    const blob = await apiFetch("/reports/pdf", {
       method: "POST",
-      body: JSON.stringify(payload),
-    }),
+      body: payload,
+      asBlob: true,
+    });
+    if (typeof window !== "undefined") {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+    return true;
+  },
 };
