@@ -1,21 +1,18 @@
 // src/lib/api.js
 
-// ========= Config =========
+// =====================
+// Config
+// =====================
 export const API_BASE =
   (import.meta.env?.VITE_API_URL || "https://masterback.onrender.com").replace(
     /\/+$/,
     ""
   );
 
-const FAKE_USER = import.meta.env?.VITE_FAKE_USER_ID || "dev-user-1";
-const ADMIN_HEADER = String(import.meta.env?.VITE_ADMIN_HEADER) === "true";
-
-// ========= Auth (token en localStorage / sessionStorage) =========
-const TOKEN_KEYS = [
-  "access_token", // preferido
-  "auth_token",
-  "token", // fallback genérico
-];
+// =====================
+// Token helpers
+// =====================
+const TOKEN_KEYS = ["access_token", "auth_token", "token"];
 
 function _readFrom(storage, keys) {
   try {
@@ -28,10 +25,8 @@ function _readFrom(storage, keys) {
 }
 
 export function getAuthToken() {
-  // 1) localStorage
   let v = _readFrom(localStorage, TOKEN_KEYS);
   if (v) return v;
-  // 2) sessionStorage
   v = _readFrom(sessionStorage, TOKEN_KEYS);
   if (v) return v;
   return null;
@@ -45,13 +40,14 @@ export function setAuthToken(token) {
 
 export function clearAuthToken() {
   try {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("auth_token");
-    localStorage.removeItem("token");
+    for (const k of TOKEN_KEYS) localStorage.removeItem(k);
+    localStorage.removeItem("user");
   } catch {}
 }
 
-// ========= Fetch helper =========
+// =====================
+// Fetch helpers
+// =====================
 async function parseJsonSafe(r) {
   try {
     return await r.json();
@@ -60,7 +56,10 @@ async function parseJsonSafe(r) {
   }
 }
 
-async function apiFetch(path, { method = "GET", headers = {}, body, asBlob = false } = {}) {
+async function apiFetch(
+  path,
+  { method = "GET", headers = {}, body, asBlob = false } = {}
+) {
   const url = `${API_BASE}${path}`;
   const token = getAuthToken();
 
@@ -93,72 +92,62 @@ async function apiFetch(path, { method = "GET", headers = {}, body, asBlob = fal
   return asBlob ? r.blob() : parseJsonSafe(r);
 }
 
-// ========= Healthcheck =========
+// Salud
 export async function ping() {
-  try {
-    const res = await fetch(`${API_BASE}/health`);
-    const txt = await res.text().catch(() => "");
-    let data = {};
-    try { data = txt ? JSON.parse(txt) : {}; } catch {}
-    return { ok: res.ok, status: res.status, url: `${API_BASE}/health`, data };
-  } catch (e) {
-    return { ok: false, status: 0, url: `${API_BASE}/health`, error: e?.message || String(e) };
-  }
+  return apiFetch("/health");
 }
 
-// ========= Campaigns =========
+// =====================
+// Campaigns
+// =====================
 export async function listCampaigns() {
   return apiFetch("/campaigns");
 }
-
-// Alias para compatibilidad con páginas que importan fetchCampaigns
-export const fetchCampaigns = listCampaigns;
 
 export async function getCampaign(id) {
   return apiFetch(`/campaigns/${id}`);
 }
 
-// Alias para compatibilidad con páginas que importan fetchCampaignById
+// Alias (NO duplicar funciones)
+export const fetchCampaigns = listCampaigns;
 export const fetchCampaignById = getCampaign;
 
-// ========= Ingest / Analyses =========
+// =====================
+// Ingest / Analyses / Search
+// =====================
 export async function ingestCampaign(campaignId) {
   return apiFetch("/ingest/ingest", { method: "POST", body: { campaignId } });
 }
 
-export async function processPending(campaignId, limit = 200) {
+/**
+ * “Analyze” a nivel UI = procesar pendientes de una campaña.
+ * (Backend: /analyses/process_pending)
+ */
+export async function analyzeCampaign(campaignId, limit = 200) {
   const qs = new URLSearchParams();
   if (campaignId) qs.set("campaignId", campaignId);
   if (limit) qs.set("limit", String(limit));
-  return apiFetch(`/analyses/process_pending?${qs.toString()}`, { method: "POST" });
+  return apiFetch(`/analyses/process_pending?${qs.toString()}`, {
+    method: "POST",
+  });
+}
+
+export async function processPending(campaignId, limit = 200) {
+  return analyzeCampaign(campaignId, limit);
 }
 
 export async function recoverCampaign(campaignId) {
   return apiFetch(`/search-local/campaign/${campaignId}`, { method: "POST" });
 }
 
-// ========= Reports =========
-export async function buildReport(payload, filename = "reporte.pdf") {
-  const blob = await apiFetch("/reports/pdf", {
+export async function searchLocal({ query, city = "", country = "MX", lang = "es-419", days_back = 14, limit = 25 }) {
+  return apiFetch("/search-local", {
     method: "POST",
-    body: payload,
-    asBlob: true,
+    body: { query, city, country, lang, days_back, limit },
   });
-
-  if (typeof window !== "undefined") {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  }
-  return true;
 }
 
-// ========= Compatibilidad con UI =========
+// Compat para páginas que piden items/analyses desde el front
 export async function fetchCampaignItems(id, params) {
   if (params?.q) {
     const qs = new URLSearchParams({
@@ -181,11 +170,36 @@ export async function fetchCampaignItems(id, params) {
 }
 
 export async function fetchCampaignAnalyses(id) {
-  // El backend aún no expone GET listado de analyses
+  // Si más adelante expones GET analyses, cámbialo aquí.
   return [];
 }
 
-// ========= Auth endpoints =========
+// =====================
+// Reports
+// =====================
+export async function buildReport(payload, filename = "reporte.pdf") {
+  const blob = await apiFetch("/reports/pdf", {
+    method: "POST",
+    body: payload,
+    asBlob: true,
+  });
+
+  if (typeof window !== "undefined") {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+  return true;
+}
+
+// =====================
+// Auth endpoints
+// =====================
 export async function apiLogin({ email, password, name } = {}) {
   const url = `${API_BASE}/auth/login`;
   const body = { email };
@@ -200,14 +214,17 @@ export async function apiLogin({ email, password, name } = {}) {
 
   const text = await r.text().catch(() => "");
   let data = {};
-  try { data = JSON.parse(text); } catch { data = {}; }
+  try {
+    data = JSON.parse(text);
+  } catch {
+    data = {};
+  }
 
   if (!r.ok) {
     throw new Error(`POST /auth/login -> ${r.status} :: ${text || "Login failed"}`);
   }
 
-  const token =
-    data.access_token || data.token || data.accessToken || null;
+  const token = data.access_token || data.token || data.accessToken || null;
   if (token) {
     try {
       localStorage.setItem("access_token", token);
@@ -215,21 +232,16 @@ export async function apiLogin({ email, password, name } = {}) {
     } catch {}
   }
 
-  return data; // { access_token, token_type, user, ... }
+  return data;
 }
 
 export function apiLogout() {
-  try {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("auth_token");
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-  } catch {}
+  clearAuthToken();
   return true;
 }
 
 // ===============================
-// AdminAPI (para UserManagement)
+// AdminAPI (User & Campaign admin)
 // ===============================
 const _authHeader = () => {
   let t = "";
@@ -253,7 +265,11 @@ async function _fetchJSON(url, options = {}) {
   });
   const text = await r.text().catch(() => "");
   let data = {};
-  try { data = text ? JSON.parse(text) : {}; } catch { data = {}; }
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = {};
+  }
   if (!r.ok) {
     const msg = data?.detail || text || `HTTP ${r.status}`;
     throw new Error(`${options.method || "GET"} ${url} -> ${r.status} :: ${msg}`);
@@ -262,7 +278,7 @@ async function _fetchJSON(url, options = {}) {
 }
 
 export const AdminAPI = {
-  // ---- Usuarios ----
+  // Users
   listUsers: () => _fetchJSON(`${API_BASE}/admin/users`),
   createUser: (payload) =>
     _fetchJSON(`${API_BASE}/admin/users`, {
@@ -285,7 +301,7 @@ export const AdminAPI = {
       body: JSON.stringify({ plan }),
     }),
 
-  // ---- Campañas ----
+  // Campaigns
   listCampaigns: () => _fetchJSON(`${API_BASE}/admin/campaigns`),
   getCampaign: (id) => _fetchJSON(`${API_BASE}/admin/campaigns/${id}`),
   createCampaign: (payload) =>
@@ -304,7 +320,7 @@ export const AdminAPI = {
       body: JSON.stringify({ userId }),
     }),
 
-  // ---- Operaciones de campaña (recuperar/analizar/reportes) ----
+  // Operations
   recoverCampaign: (campaignId) =>
     _fetchJSON(`${API_BASE}/search-local/campaign/${campaignId}`, {
       method: "POST",
@@ -315,64 +331,14 @@ export const AdminAPI = {
     if (limit) url.searchParams.set("limit", String(limit));
     return _fetchJSON(url.toString(), { method: "POST" });
   },
-
-  // Usa el mismo flujo de descarga de PDF
-  buildReport: async (payload, filename = "reporte.pdf") => {
-    const blob = await apiFetch("/reports/pdf", {
+  buildReport: (payload) =>
+    _fetchJSON(`${API_BASE}/reports/pdf`, {
       method: "POST",
-      body: payload,
-      asBlob: true,
-    });
-    if (typeof window !== "undefined") {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    }
-    return true;
-  },
+      body: JSON.stringify(payload),
+    }),
 };
-// ======== Compat con la UI existente (NO DUPLICAR funciones previas) ========
 
-// Aliases
-export const fetchCampaigns = listCampaigns;
-export const fetchCampaignById = getCampaign;
-
-// Healthcheck simple
-export async function ping() {
-  try {
-    const r = await fetch(`${API_BASE}/health`);
-    return r.ok;
-  } catch {
-    return false;
-  }
-}
-
-// Lanzar análisis para una campaña (alias de processPending)
-export async function analyzeCampaign(campaignId, limit = 200) {
-  return processPending(campaignId, limit);
-}
-
-// Búsqueda local ad-hoc
-export async function searchLocal({
-  query,
-  city = "",
-  country = "MX",
-  lang = "es-419",
-  days_back = 14,
-  limit = 25,
-}) {
-  return apiFetch("/search-local", {
-    method: "POST",
-    body: { query, city, country, lang, days_back, limit },
-  });
-}
-
-// Aliases hacia AdminAPI (si tus vistas los importan así)
-export const adminProcessAnalyses = AdminAPI.processAnalyses;
+// Compat: si tu UI vieja importa estos nombres admin*
 export const adminRecover = AdminAPI.recoverCampaign;
 export const adminBuildReport = AdminAPI.buildReport;
+export const adminProcessAnalyses = AdminAPI.processAnalyses;
