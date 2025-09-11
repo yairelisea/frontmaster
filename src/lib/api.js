@@ -56,6 +56,16 @@ async function parseJsonSafe(r) {
   }
 }
 
+function _asId(v) {
+  if (v == null) return null;
+  if (typeof v === "string" || typeof v === "number") return String(v);
+  if (typeof v === "object") {
+    if (v.id != null) return String(v.id);
+    if (v.campaignId != null) return String(v.campaignId);
+  }
+  try { return String(v); } catch { return null; }
+}
+
 async function apiFetch(
   path,
   { method = "GET", headers = {}, body, asBlob = false } = {}
@@ -171,8 +181,9 @@ export async function ingestCampaign(campaignId) {
  * (Backend: /analyses/process_pending)
  */
 export async function analyzeCampaign(campaignId, limit = 200) {
+  const id = _asId(campaignId);
   const qs = new URLSearchParams();
-  if (campaignId) qs.set("campaignId", campaignId);
+  if (id) qs.set("campaignId", id);
   if (limit) qs.set("limit", String(limit));
   return apiFetch(`/analyses/process_pending?${qs.toString()}`, {
     method: "POST",
@@ -184,7 +195,8 @@ export async function processPending(campaignId, limit = 200) {
 }
 
 export async function recoverCampaign(campaignId) {
-  return apiFetch(`/search-local/campaign/${campaignId}`, { method: "POST" });
+  const id = _asId(campaignId);
+  return apiFetch(`/search-local/campaign/${id}`, { method: "POST" });
 }
 
 export async function searchLocal({ query, city = "", country = "MX", lang = "es-419", days_back = 14, limit = 25 }) {
@@ -486,3 +498,5 @@ export const AdminAPI = {
 export const adminRecover = AdminAPI.recoverCampaign;
 export const adminBuildReport = AdminAPI.buildReport;
 export const adminProcessAnalyses = AdminAPI.processAnalyses;
+export const adminListCampaigns = AdminAPI.listCampaigns;
+export const adminGetCampaign = AdminAPI.getCampaign;

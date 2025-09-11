@@ -1,13 +1,12 @@
 // src/admin/AdminCampaignsPage.jsx
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-// ✅ Ruta correcta desde src/admin → ../api/client.js
 import {
-  fetchCampaigns,
+  adminListCampaigns,
   adminRecover,
   adminProcessAnalyses,
   adminBuildReport,
-} from "@/api/client.js";
+} from "@/lib/api";
 
 export default function AdminCampaignsPage() {
   const [list, setList] = useState([]);
@@ -19,7 +18,7 @@ export default function AdminCampaignsPage() {
     setLoading(true);
     setErr("");
     try {
-      const data = await fetchCampaigns();
+      const data = await adminListCampaigns();
       setList(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error("fetchCampaigns error:", e);

@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
+  adminGetCampaign,
   fetchCampaignById,
   adminFetchCampaignOverview,
   adminFetchCampaignItems,
@@ -31,7 +32,13 @@ export default function AdminCampaignDetailPage() {
   const loadBase = async () => {
     setLoading(true); setErr("");
     try {
-      const c = await fetchCampaignById(id);
+      let c = null;
+      try {
+        c = await adminGetCampaign(id);
+      } catch (e) {
+        // Fallback por si no existe la ruta admin en backend
+        c = await fetchCampaignById(id);
+      }
       setCampaign(c || null);
       const o = await adminFetchCampaignOverview(id).catch(() => null);
       setOverview(o);
