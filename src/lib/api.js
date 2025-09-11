@@ -208,3 +208,97 @@ export function apiLogout() {
   } catch {}
   return true;
 }
+// ===============================
+// AdminAPI (para UserManagement)
+// ===============================
+const _authHeader = () => {
+  let t = "";
+  try {
+    t =
+      localStorage.getItem("access_token") ||
+      localStorage.getItem("token") ||
+      "";
+  } catch {}
+  return t ? { Authorization: `Bearer ${t}` } : {};
+};
+
+async function _fetchJSON(url, options = {}) {
+  const r = await fetch(url, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ..._authHeader(),
+      ...(options.headers || {}),
+    },
+  });
+  const text = await r.text().catch(() => "");
+  let data = {};
+  try { data = text ? JSON.parse(text) : {}; } catch { data = {}; }
+  if (!r.ok) {
+    const msg = data?.detail || text || `HTTP ${r.status}`;
+    throw new Error(`${options.method || "GET"} ${url} -> ${r.status} :: ${msg}`);
+  }
+  return data;
+}
+
+export const AdminAPI = {
+  // ---- Usuarios ----
+  listUsers: () => _fetchJSON(`${API_BASE}/admin/users`),
+  createUser: (payload) =>
+    _fetchJSON(`${API_BASE}/admin/users`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  updateUser: (userId, payload) =>
+    _fetchJSON(`${API_BASE}/admin/users/${userId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+  // Features/roles por usuario (opcional)
+  setFeatures: (userId, features) =>
+    _fetchJSON(`${API_BASE}/admin/users/${userId}/features`, {
+      method: "PUT",
+      body: JSON.stringify({ features }),
+    }),
+  setPlan: (userId, plan) =>
+    _fetchJSON(`${API_BASE}/admin/users/${userId}/plan`, {
+      method: "PUT",
+      body: JSON.stringify({ plan }),
+    }),
+
+  // ---- Campañas ----
+  listCampaigns: () => _fetchJSON(`${API_BASE}/admin/campaigns`),
+  getCampaign: (id) => _fetchJSON(`${API_BASE}/admin/campaigns/${id}`),
+  createCampaign: (payload) =>
+    _fetchJSON(`${API_BASE}/admin/campaigns`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  updateCampaign: (id, payload) =>
+    _fetchJSON(`${API_BASE}/admin/campaigns/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+  assignCampaignToUser: (campaignId, userId) =>
+    _fetchJSON(`${API_BASE}/admin/campaigns/${campaignId}/assign`, {
+      method: "POST",
+      body: JSON.stringify({ userId }),
+    }),
+
+  // ---- Operaciones de campaña (recuperar/analizar/reportes) ----
+  recoverCampaign: (campaignId) =>
+    _fetchJSON(`${API_BASE}/search-local/campaign/${campaignId}`, {
+      method: "POST",
+    }),
+  processAnalyses: (campaignId, limit = 200) => {
+    const url = new URL(`${API_BASE}/analyses/process_pending`);
+    if (campaignId) url.searchParams.set("campaignId", campaignId);
+    if (limit) url.searchParams.set("limit", String(limit));
+    return _fetchJSON(url.toString(), { method: "POST" });
+  },
+  buildReport: (payload) =>
+    _fetchJSON(`${API_BASE}/reports/pdf`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+};
