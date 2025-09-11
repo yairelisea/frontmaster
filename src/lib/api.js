@@ -336,3 +336,39 @@ export const AdminAPI = {
     return true;
   },
 };
+// ========= Ingest / Analyses =========
+// (ya existente)
+export async function ingestCampaign(campaignId) {
+  return apiFetch("/ingest/ingest", { method: "POST", body: { campaignId } });
+}
+
+export async function processPending(campaignId, limit = 200) {
+  const qs = new URLSearchParams();
+  if (campaignId) qs.set("campaignId", campaignId);
+  if (limit) qs.set("limit", String(limit));
+  return apiFetch(`/analyses/process_pending?${qs.toString()}`, { method: "POST" });
+}
+
+export async function recoverCampaign(campaignId) {
+  return apiFetch(`/search-local/campaign/${campaignId}`, { method: "POST" });
+}
+
+// ⬇️ NUEVO: alias que usa tu UI para lanzar análisis de una campaña
+export async function analyzeCampaign(campaignId, limit = 200) {
+  return processPending(campaignId, limit);
+}
+
+// ⬇️ NUEVO: búsqueda local ad-hoc (para pruebas/recuperación sin campaignId)
+export async function searchLocal({
+  query,
+  city = "",
+  country = "MX",
+  lang = "es-419",
+  days_back = 14,
+  limit = 50,
+}) {
+  return apiFetch("/search-local", {
+    method: "POST",
+    body: { query, city, country, lang, days_back, limit },
+  });
+}
