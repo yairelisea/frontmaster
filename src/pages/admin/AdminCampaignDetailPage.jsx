@@ -154,7 +154,17 @@ export default function AdminCampaignDetailPage() {
       if (tab === "items") await loadItems();
       if (tab === "analyses") await loadAnalyses();
     } catch {
-      setActionMsg("Error al actualizar");
+      // Fallback: ejecutar análisis IA para mostrar datos aunque el backend de recuperación falle
+      try {
+        setActionMsg("Backend no disponible. Ejecutando análisis IA (solo lectura)…");
+        await analyzeNewsForCampaign(campaign, { overall: true });
+        await loadBase();
+        if (tab === "items") await loadItems();
+        if (tab === "analyses") await loadAnalyses();
+        setActionMsg("Análisis IA listo (modo lectura)");
+      } catch {
+        setActionMsg("Error al actualizar");
+      }
     } finally {
       setBusy(false);
     }

@@ -6,6 +6,7 @@ import {
   adminRecover,
   adminProcessAnalyses,
   adminBuildReport,
+  analyzeNewsForCampaign,
 } from "@/lib/api";
 
 export default function AdminCampaignsPage() {
@@ -110,7 +111,14 @@ function Actions({ c, onDone }) {
       onDone && onDone();
     } catch (e) {
       console.error(e);
-      setMsg("Error");
+      // Fallback rápido: análisis IA de lectura para no dejar al usuario sin feedback
+      try {
+        await analyzeNewsForCampaign(c, { overall: true });
+        setMsg("Análisis IA listo (lectura)");
+        onDone && onDone();
+      } catch {
+        setMsg("Error");
+      }
     } finally {
       setBusy(false);
     }

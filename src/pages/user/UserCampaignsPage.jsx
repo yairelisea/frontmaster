@@ -10,7 +10,7 @@ import { CampaignTable } from '@/components/user/campaigns/CampaignTable';
 import { Link, useLocation } from 'react-router-dom';
  import {
      fetchCampaigns,
-     analyzeCampaign,
+     analyzeNewsForCampaign,
      recoverCampaign,
      searchLocal,
      normalizeAnalysis,
@@ -125,7 +125,7 @@ const UserCampaignsPage = () => {
     setAnalysisCampaign(campaign);
 
     try {
-      const res = await analyzeCampaign(campaign);
+      const res = await analyzeNewsForCampaign(campaign, { overall: true });
       const normalized = normalizeAnalysis(res) || res || null;
       setAnalysisData(normalized);
       // cache para "Ver más"
@@ -271,13 +271,33 @@ const UserCampaignsPage = () => {
     
          // 4) Refresca campañas sin bloquear UI
          loadCampaigns().catch(() => {});
-       } catch (e) {
-         console.error('handleRecoverCampaign error:', e);
-         toast({ title: 'Error', description: String(e?.message || e) });
-       } finally {
-         setRecovering(false);
-       }
-     };
+      } catch (e) {
+        console.error('handleRecoverCampaign error:', e);
+        // Fallback: intenta búsqueda local ad-hoc aunque falle el backend persistente
+        try {
+          const adHoc = await searchLocal({
+            query: camp.query,
+            city: camp.city_keywords || camp.city || '',
+            country: camp.country || 'MX',
+            lang: camp.lang || 'es-419',
+            days_back: camp.days_back ?? 14,
+            limit: camp.size ?? 25,
+          });
+          const finalAnalysis = normalizeAnalysis({ items: adHoc?.items || [] });
+          setAnalysisCampaign(camp);
+          setAnalysisData(finalAnalysis);
+          try {
+            const cacheKey = cacheKeyForCampaign(camp);
+            if (cacheKey) saveAnalysisCache(cacheKey, finalAnalysis, { campaignId: camp.id, campaignName: camp.name });
+          } catch {}
+          toast({ title: 'Análisis actualizado (lectura)', description: 'Se mostraron resultados con búsqueda local.', className: 'bg-brand-green text-white' });
+        } catch (e2) {
+          toast({ title: 'Error', description: String(e2?.message || e2) });
+        }
+      } finally {
+        setRecovering(false);
+      }
+    };
 
   return (
     <motion.div
