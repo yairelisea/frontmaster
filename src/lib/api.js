@@ -471,4 +471,3 @@ export const AdminAPI = {
 export const adminRecover = AdminAPI.recoverCampaign;
 export const adminBuildReport = AdminAPI.buildReport;
 export const adminProcessAnalyses = AdminAPI.processAnalyses;
-export const adminProcessAnalyses = AdminAPI.processAnalyses;
