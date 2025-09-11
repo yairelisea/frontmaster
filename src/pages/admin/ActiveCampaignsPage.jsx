@@ -138,6 +138,20 @@ function Actions({ c, onDone }) {
     }
   };
 
+  const doQuickAnalyze = async () => {
+    setBusy(true); setMsg("");
+    try {
+      await analyzeNewsForCampaign(c, { overall: true });
+      setMsg("IA lista (lectura)");
+      onDone && onDone();
+    } catch (e) {
+      console.error(e);
+      setMsg("IA falló");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="flex gap-2 items-center">
       <button
@@ -146,6 +160,13 @@ function Actions({ c, onDone }) {
         className="px-3 py-1.5 rounded bg-black text-white text-xs"
       >
         {busy ? "…" : "Actualizar"}
+      </button>
+      <button
+        onClick={doQuickAnalyze}
+        disabled={busy}
+        className="px-3 py-1.5 rounded bg-gray-900 text-white text-xs"
+      >
+        IA (rápido)
       </button>
       <button
         onClick={doPDF}

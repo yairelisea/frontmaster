@@ -183,6 +183,21 @@ export default function AdminCampaignDetailPage() {
     }
   };
 
+  const onQuickAnalyze = async () => {
+    setBusy(true); setActionMsg("");
+    try {
+      await analyzeNewsForCampaign(campaign, { overall: true });
+      await loadBase();
+      if (tab === "items") await loadItems();
+      if (tab === "analyses") await loadAnalyses();
+      setActionMsg("Análisis IA listo (lectura)");
+    } catch {
+      setActionMsg("Error en análisis IA");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (loading) return <div className="p-4">Cargando…</div>;
   if (!campaign) return <div className="p-4">No se encontró la campaña.</div>;
 
@@ -193,6 +208,7 @@ export default function AdminCampaignDetailPage() {
         <div className="flex items-center gap-2">
           <button onClick={loadBase} disabled={loading || busy} className="px-3 py-1.5 rounded bg-gray-200 text-gray-900 text-sm">{loading ? "Cargando…" : "Refrescar"}</button>
           <button onClick={onRecover} disabled={busy} className="px-3 py-1.5 rounded bg-black text-white text-sm">{busy ? "…" : "Actualizar (buscar + analizar)"}</button>
+          <button onClick={onQuickAnalyze} disabled={busy} className="px-3 py-1.5 rounded bg-gray-900 text-white text-sm">IA (rápido)</button>
           <button onClick={onPDF} disabled={busy} className="px-3 py-1.5 rounded bg-gray-800 text-white text-sm">PDF</button>
         </div>
       </div>
