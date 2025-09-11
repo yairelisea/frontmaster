@@ -138,3 +138,14 @@ export async function ping() {
 export async function fetchCampaignAnalyses(id) {
   return []; // tu backend no expone GET de análisis listados
 }
+
+// Alias compatible con la página de detalle:
+export async function fetchCampaignById(id) {
+  // Reusa la función existente
+  return fetchCampaign(id);
+}
+
+// Alias para procesar análisis pendientes (wrapper de processPending)
+export async function adminProcessAnalyses(campaignId, limit = 200) {
+  return processPending(campaignId, limit);
+}
