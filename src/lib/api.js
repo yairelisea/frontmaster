@@ -232,7 +232,12 @@ export async function adminFetchCampaignItems(id, params = {}) {
   if (status) qs.set("status", status);
   if (order) qs.set("order", order);
   if (dir) qs.set("dir", dir);
-  return apiFetch(`/admin/campaigns/${id}/items?${qs.toString()}`);
+  try {
+    return await apiFetch(`/admin/campaigns/${id}/items?${qs.toString()}`);
+  } catch {
+    // Fallback si aún no existen rutas admin en backend
+    return fetchCampaignItems(id, params);
+  }
 }
 
 export async function adminFetchCampaignAnalyses(id, params = {}) {
@@ -243,11 +248,21 @@ export async function adminFetchCampaignAnalyses(id, params = {}) {
   if (q) qs.set("q", q);
   if (order) qs.set("order", order);
   if (dir) qs.set("dir", dir);
-  return apiFetch(`/admin/campaigns/${id}/analyses?${qs.toString()}`);
+  try {
+    return await apiFetch(`/admin/campaigns/${id}/analyses?${qs.toString()}`);
+  } catch {
+    // Fallback si aún no existen rutas admin en backend
+    return fetchCampaignAnalyses(id, params);
+  }
 }
 
 export async function adminFetchCampaignOverview(id) {
-  return apiFetch(`/admin/campaigns/${id}/overview`);
+  try {
+    return await apiFetch(`/admin/campaigns/${id}/overview`);
+  } catch {
+    // Fallback si aún no existen rutas admin en backend
+    return fetchCampaignOverview(id);
+  }
 }
 
 // =====================
