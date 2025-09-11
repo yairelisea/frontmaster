@@ -1,8 +1,7 @@
 // src/auth/RequireAuth.jsx
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 
-// Si ya usas AuthContext:
-let getToken = () => {
+function getToken() {
   try {
     return (
       localStorage.getItem("access_token") ||
@@ -12,14 +11,13 @@ let getToken = () => {
   } catch {
     return "";
   }
-};
+}
 
 export default function RequireAuth() {
   const token = getToken();
   const loc = useLocation();
 
   if (!token) {
-    // Guardamos la ruta origen para volver tras login
     return (
       <Navigate
         to="/auth/login"

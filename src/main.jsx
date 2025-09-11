@@ -5,7 +5,7 @@ import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import App from "./App.jsx";
 import AuthLayout from "./layouts/AuthLayout.jsx";
 import LoginPage from "./pages/auth/LoginPage.jsx";
-import RequireAuth from "./auth/RequireAuth.jsx";
+import RequireAuth from "./pages/auth/RequireAuth.jsx";
 
 import AdminLayout from "./admin/AdminLayout.jsx";
 import AdminCampaignsPage from "./admin/AdminCampaignsPage.jsx";
