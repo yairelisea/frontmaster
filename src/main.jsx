@@ -1,62 +1,76 @@
 // src/main.jsx
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { createBrowserRouter, RouterProvider, Navigate, Outlet, useLocation } from "react-router-dom";
+import { createBrowserRouter, RouterProvider, Navigate } from "react-router-dom";
 
-// NO importes RequireAuth, lo definimos inline para evitar el error de archivo faltante
-// import RequireAuth from "./auth/RequireAuth.jsx";
-import "./index.css";
-import AdminLayout from "./admin/AdminLayout.jsx";
-import AdminCampaignsPage from "./admin/AdminCampaignsPage.jsx";
-import AdminCampaignDetailPage from "./pages/admin/AdminCampaignDetailPage.jsx";
-import AuthLayout from "./layouts/AuthLayout.jsx";
-import LoginPage from "./pages/auth/LoginPage.jsx";
+import "./index.css"; // <-- imprescindible para Tailwind
 
-// Guard inline (evita el import que está fallando en Netlify)
-function RequireAuthInline() {
-  const loc = useLocation();
-  let token = "";
-  try {
-    token =
-      localStorage.getItem("access_token") ||
-      localStorage.getItem("token") ||
-      "";
-  } catch {}
-  if (!token) {
-    return <Navigate to="/auth/login" replace state={{ from: loc.pathname + loc.search }} />;
-  }
-  return <Outlet />;
+// Contexto de auth (el tuyo)
+import { AuthProvider } from "@/context/AuthContext";
+
+// Páginas existentes
+import App from "./App.jsx";
+
+// Layouts y páginas de auth
+import AuthLayout from "@/layouts/AuthLayout.jsx";
+import LoginPage from "@/pages/auth/LoginPage.jsx";
+
+// Admin + páginas
+import AdminLayout from "@/admin/AdminLayout.jsx";
+import AdminCampaignsPage from "@/admin/AdminCampaignsPage.jsx";
+import AdminCampaignDetailPage from "@/pages/admin/AdminCampaignDetailPage.jsx";
+
+// Wrapper de rutas protegidas
+import RequireAuth from "@/auth/RequireAuth.jsx";
+
+function RouteError() {
+  return (
+    <div className="p-6">
+      <h1 className="text-xl font-semibold mb-2">Algo salió mal</h1>
+      <p>Revisa consola/Network para más detalles.</p>
+    </div>
+  );
 }
 
 const router = createBrowserRouter([
-  { path: "/", element: <Navigate to="/admin/campaigns" replace /> },
+  // raíz: redirige a /auth/login o a lo que tengas en App
+  { path: "/", element: <App />, errorElement: <RouteError /> },
 
-  // Auth públicas
+  // Auth (público)
   {
     path: "/auth",
     element: <AuthLayout />,
-    children: [{ path: "login", element: <LoginPage /> }],
-  },
-
-  // Admin protegido con el guard inline
-  {
-    path: "/admin",
-    element: <RequireAuthInline />,
+    errorElement: <RouteError />,
     children: [
-      {
-        path: "",
-        element: <AdminLayout />,
-        children: [
-          { path: "campaigns", element: <AdminCampaignsPage /> },
-          { path: "campaigns/:id", element: <AdminCampaignDetailPage /> },
-        ],
-      },
+      { index: true, element: <Navigate to="login" replace /> },
+      { path: "login", element: <LoginPage /> },
     ],
   },
+
+  // Admin (protegido)
+  {
+    path: "/admin",
+    element: (
+      <RequireAuth>
+        <AdminLayout />
+      </RequireAuth>
+    ),
+    errorElement: <RouteError />,
+    children: [
+      { index: true, element: <Navigate to="campaigns" replace /> },
+      { path: "campaigns", element: <AdminCampaignsPage /> },
+      { path: "campaigns/:id", element: <AdminCampaignDetailPage /> },
+    ],
+  },
+
+  // 404
+  { path: "*", element: <Navigate to="/" replace /> },
 ]);
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <RouterProvider router={router} />
+    <AuthProvider>
+      <RouterProvider router={router} />
+    </AuthProvider>
   </React.StrictMode>
 );
