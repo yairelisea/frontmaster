@@ -120,6 +120,21 @@ export async function fetchCampaignItems(id, fallbackParams) {
   return [];
 }
 
+// Healthcheck simple para usar en el admin
+export async function ping() {
+  const url = `${API_BASE}/health`;
+  try {
+    const r = await fetch(url, { method: "GET" });
+    const text = await r.text().catch(() => "");
+    // intenta parsear json si aplica
+    let data = {};
+    try { data = JSON.parse(text); } catch {}
+    return { status: r.status, ok: r.ok, data, raw: text };
+  } catch (e) {
+    return { status: 0, ok: false, error: String(e) };
+  }
+}
+
 export async function fetchCampaignAnalyses(id) {
   return []; // tu backend no expone GET de análisis listados
 }
