@@ -164,3 +164,47 @@ export async function fetchCampaignItems(id, params) {
 export async function fetchCampaignAnalyses(id) {
   return []; // backend no expone GET de analyses listados aún
 }
+
+// ========= Auth endpoints =========
+export async function apiLogin({ email, password, name } = {}) {
+  const url = `${API_BASE}/auth/login`;
+  const body = { email };
+  if (password) body.password = password;
+  if (name) body.name = name;
+
+  const r = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  const text = await r.text().catch(() => "");
+  let data = {};
+  try { data = JSON.parse(text); } catch { data = {}; }
+
+  if (!r.ok) {
+    throw new Error(`POST /auth/login -> ${r.status} :: ${text || "Login failed"}`);
+  }
+
+  // intenta guardar el token para que el resto de llamadas funcionen de inmediato
+  const token =
+    data.access_token || data.token || data.accessToken || null;
+  if (token) {
+    try {
+      localStorage.setItem("access_token", token);
+      if (data.user) localStorage.setItem("user", JSON.stringify(data.user));
+    } catch {}
+  }
+
+  return data; // { access_token, token_type, user, ... }
+}
+
+export function apiLogout() {
+  try {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("auth_token");
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+  } catch {}
+  return true;
+}
