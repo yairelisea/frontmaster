@@ -1,19 +1,16 @@
-// src/pages/admin/AdminCampaignDetailPage.jsx
+// src/pages/user/UserCampaignDetailPage.jsx
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
   fetchCampaignById,
-  adminFetchCampaignOverview,
-  adminFetchCampaignItems,
-  adminFetchCampaignAnalyses,
-  adminRecover,
-  adminProcessAnalyses,
-  adminBuildReport,
+  fetchCampaignOverview,
+  fetchCampaignItems,
+  fetchCampaignAnalyses,
 } from "@/lib/api";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
-export default function AdminCampaignDetailPage() {
-  const { id } = useParams();
+export default function UserCampaignDetailPage() {
+  const { campaignId } = useParams();
 
   const [campaign, setCampaign] = useState(null);
   const [overview, setOverview] = useState(null);
@@ -22,18 +19,18 @@ export default function AdminCampaignDetailPage() {
   const [tab, setTab] = useState("overview");
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [actionMsg, setActionMsg] = useState("");
 
   const [itemFilters, setItemFilters] = useState({ q: "", status: "", order: "publishedAt", dir: "desc", page: 1, per_page: 25 });
   const [analysisFilters, setAnalysisFilters] = useState({ q: "", order: "createdAt", dir: "desc", page: 1, per_page: 25 });
+
+  const id = campaignId;
 
   const loadBase = async () => {
     setLoading(true); setErr("");
     try {
       const c = await fetchCampaignById(id);
       setCampaign(c || null);
-      const o = await adminFetchCampaignOverview(id).catch(() => null);
+      const o = await fetchCampaignOverview(id).catch(() => null);
       setOverview(o);
     } catch (e) {
       setErr(e?.message || "Error cargando datos");
@@ -44,14 +41,14 @@ export default function AdminCampaignDetailPage() {
 
   const loadItems = async () => {
     try {
-      const data = await adminFetchCampaignItems(id, itemFilters);
+      const data = await fetchCampaignItems(id, itemFilters);
       setItems(data || { count: 0, page: 1, per_page: 25, items: [] });
     } catch {}
   };
 
   const loadAnalyses = async () => {
     try {
-      const data = await adminFetchCampaignAnalyses(id, analysisFilters);
+      const data = await fetchCampaignAnalyses(id, analysisFilters);
       setAnalyses(data || { count: 0, page: 1, per_page: 25, items: [] });
     } catch {}
   };
@@ -60,52 +57,11 @@ export default function AdminCampaignDetailPage() {
   useEffect(() => { if (tab === "items") loadItems(); }, [tab, itemFilters]);
   useEffect(() => { if (tab === "analyses") loadAnalyses(); }, [tab, analysisFilters]);
 
-  const onRecover = async () => {
-    setBusy(true); setActionMsg("");
-    try {
-      await adminRecover(id);
-      await adminProcessAnalyses(id);
-      setActionMsg("Actualizada (buscar + analizar) OK");
-      await loadBase();
-      if (tab === "items") await loadItems();
-      if (tab === "analyses") await loadAnalyses();
-    } catch {
-      setActionMsg("Error al actualizar");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const onPDF = async () => {
-    setBusy(true); setActionMsg("");
-    try {
-      const r = await adminBuildReport(campaign || { name: "", query: "" });
-      if (r?.url) window.open(r.url, "_blank");
-      else setActionMsg("PDF generado");
-    } catch {
-      setActionMsg("Error al generar PDF");
-    } finally {
-      setBusy(false);
-    }
-  };
-
   if (loading) return <div className="p-4">Cargando…</div>;
   if (!campaign) return <div className="p-4">No se encontró la campaña.</div>;
 
   return (
     <div className="space-y-6 p-4">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <h1 className="text-xl font-semibold">{campaign.name}</h1>
-        <div className="flex items-center gap-2">
-          <button onClick={loadBase} disabled={loading || busy} className="px-3 py-1.5 rounded bg-gray-200 text-gray-900 text-sm">{loading ? "Cargando…" : "Refrescar"}</button>
-          <button onClick={onRecover} disabled={busy} className="px-3 py-1.5 rounded bg-black text-white text-sm">{busy ? "…" : "Actualizar (buscar + analizar)"}</button>
-          <button onClick={onPDF} disabled={busy} className="px-3 py-1.5 rounded bg-gray-800 text-white text-sm">PDF</button>
-        </div>
-      </div>
-
-      {err && <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded p-2">{err}</div>}
-      {actionMsg && <div className="text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded p-2">{actionMsg}</div>}
-
       <div className="bg-white rounded-xl shadow-sm p-4">
         <div className="text-xs uppercase tracking-wide text-gray-500">Query</div>
         <div className="text-lg font-semibold">{campaign.query}</div>
@@ -285,3 +241,4 @@ function Pagination({ page, totalPages, onPage }) {
     </div>
   );
 }
+

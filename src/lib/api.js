@@ -195,30 +195,59 @@ export async function searchLocal({ query, city = "", country = "MX", lang = "es
 }
 
 // Compat para páginas que piden items/analyses desde el front
-export async function fetchCampaignItems(id, params) {
-  if (params?.q) {
-    const qs = new URLSearchParams({
-      q: params.q,
-      size: String(params.size || 25),
-      days_back: String(params.days_back || 14),
-      lang: params.lang || "es-419",
-      country: params.country || "MX",
-    });
-    const data = await apiFetch(`/news/news?${qs.toString()}`);
-    return (data.items || []).map((it) => ({
-      title: it.title,
-      url: it.link || it.url,
-      publishedAt: it.published_at,
-      source: it.source,
-      snippet: it.summary,
-    }));
-  }
-  return [];
+export async function fetchCampaignItems(id, params = {}) {
+  const qs = new URLSearchParams();
+  const { page = 1, per_page = 25, q, status, order = "publishedAt", dir = "desc" } = params || {};
+  qs.set("page", String(page));
+  qs.set("per_page", String(per_page));
+  if (q) qs.set("q", q);
+  if (status) qs.set("status", status);
+  if (order) qs.set("order", order);
+  if (dir) qs.set("dir", dir);
+  return apiFetch(`/campaigns/${id}/items?${qs.toString()}`);
 }
 
-export async function fetchCampaignAnalyses(id) {
-  // Si más adelante expones GET analyses, cámbialo aquí.
-  return [];
+export async function fetchCampaignAnalyses(id, params = {}) {
+  const qs = new URLSearchParams();
+  const { page = 1, per_page = 25, q, order = "createdAt", dir = "desc" } = params || {};
+  qs.set("page", String(page));
+  qs.set("per_page", String(per_page));
+  if (q) qs.set("q", q);
+  if (order) qs.set("order", order);
+  if (dir) qs.set("dir", dir);
+  return apiFetch(`/campaigns/${id}/analyses?${qs.toString()}`);
+}
+
+export async function fetchCampaignOverview(id) {
+  return apiFetch(`/campaigns/${id}/overview`);
+}
+
+// Admin mirrors
+export async function adminFetchCampaignItems(id, params = {}) {
+  const qs = new URLSearchParams();
+  const { page = 1, per_page = 25, q, status, order = "publishedAt", dir = "desc" } = params || {};
+  qs.set("page", String(page));
+  qs.set("per_page", String(per_page));
+  if (q) qs.set("q", q);
+  if (status) qs.set("status", status);
+  if (order) qs.set("order", order);
+  if (dir) qs.set("dir", dir);
+  return apiFetch(`/admin/campaigns/${id}/items?${qs.toString()}`);
+}
+
+export async function adminFetchCampaignAnalyses(id, params = {}) {
+  const qs = new URLSearchParams();
+  const { page = 1, per_page = 25, q, order = "createdAt", dir = "desc" } = params || {};
+  qs.set("page", String(page));
+  qs.set("per_page", String(per_page));
+  if (q) qs.set("q", q);
+  if (order) qs.set("order", order);
+  if (dir) qs.set("dir", dir);
+  return apiFetch(`/admin/campaigns/${id}/analyses?${qs.toString()}`);
+}
+
+export async function adminFetchCampaignOverview(id) {
+  return apiFetch(`/admin/campaigns/${id}/overview`);
 }
 
 // =====================
@@ -441,4 +470,5 @@ export const AdminAPI = {
 // Compat: si tu UI vieja importa estos nombres admin*
 export const adminRecover = AdminAPI.recoverCampaign;
 export const adminBuildReport = AdminAPI.buildReport;
+export const adminProcessAnalyses = AdminAPI.processAnalyses;
 export const adminProcessAnalyses = AdminAPI.processAnalyses;

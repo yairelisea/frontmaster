@@ -12,6 +12,7 @@ import AdminDashboardPage from "@/pages/admin/AdminDashboardPage";
 import UserManagementPage from "@/pages/admin/UserManagementPage";
 import PlansSubscriptionsPage from "@/pages/admin/PlansSubscriptionsPage";
 import ActiveCampaignsPage from "@/pages/admin/ActiveCampaignsPage";
+import AdminCampaignDetailPage from "@/pages/admin/AdminCampaignDetailPage";
 import SocialConnectionsPage from "@/pages/admin/SocialConnectionsPage";
 import LogsActivityPage from "@/pages/admin/LogsActivityPage";
 import GeneralSettingsPage from "@/pages/admin/GeneralSettingsPage";
@@ -20,6 +21,7 @@ import GeneralSettingsPage from "@/pages/admin/GeneralSettingsPage";
 import UserDashboardPage from "@/pages/user/UserDashboardPage";
 import UserCampaignsPage from "@/pages/user/UserCampaignsPage";
 import CampaignFormPage from "@/pages/user/CampaignFormPage";
+import UserCampaignDetailPage from "@/pages/user/UserCampaignDetailPage";
 import UserPostsMentionsPage from "@/pages/user/UserPostsMentionsPage";
 import UserAnalyticsPage from "@/pages/user/UserAnalyticsPage";
 import UserConnectAccountsPage from "@/pages/user/UserConnectAccountsPage";
@@ -60,6 +62,7 @@ function App() {
             <Route path="users" element={<UserManagementPage />} />
             <Route path="plans" element={<PlansSubscriptionsPage />} />
             <Route path="campaigns" element={<ActiveCampaignsPage />} />
+            <Route path="campaigns/:id" element={<AdminCampaignDetailPage />} />
             <Route path="social" element={<SocialConnectionsPage />} />
             <Route path="logs" element={<LogsActivityPage />} />
             <Route path="settings" element={<GeneralSettingsPage />} />
@@ -72,6 +75,7 @@ function App() {
             <Route index element={<Navigate to="dashboard" replace />} />
             <Route path="dashboard" element={<UserDashboardPage />} />
             <Route path="campaigns" element={<UserCampaignsPage />} />
+            <Route path="campaigns/:campaignId" element={<UserCampaignDetailPage />} />
             <Route path="campaigns/new" element={<CampaignFormPage />} />
             <Route path="campaigns/edit/:campaignId" element={<CampaignFormPage />} />
             <Route path="posts" element={<UserPostsMentionsPage />} />
