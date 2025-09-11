@@ -92,6 +92,49 @@ async function apiFetch(
   return asBlob ? r.blob() : parseJsonSafe(r);
 }
 
+// =====================
+// Axios-like helper (api)
+// =====================
+function normalizePath(p) {
+  if (!p) return "/";
+  return p.startsWith("/") ? p : `/${p}`;
+}
+
+function withParams(p, params) {
+  if (!params || typeof params !== "object") return p;
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v == null) continue;
+    qs.set(k, String(v));
+  }
+  const q = qs.toString();
+  if (!q) return p;
+  return p.includes("?") ? `${p}&${q}` : `${p}?${q}`;
+}
+
+export const api = {
+  async get(p, opts = {}) {
+    const path = withParams(normalizePath(p), opts.params);
+    const data = await apiFetch(path, { method: "GET", headers: opts.headers });
+    return { data };
+  },
+  async post(p, body, opts = {}) {
+    const path = normalizePath(p);
+    const data = await apiFetch(path, { method: "POST", body, headers: opts.headers });
+    return { data };
+  },
+  async put(p, body, opts = {}) {
+    const path = normalizePath(p);
+    const data = await apiFetch(path, { method: "PUT", body, headers: opts.headers });
+    return { data };
+  },
+  async delete(p, opts = {}) {
+    const path = normalizePath(p);
+    const data = await apiFetch(path, { method: "DELETE", headers: opts.headers });
+    return { data };
+  },
+};
+
 // Salud
 export async function ping() {
   return apiFetch("/health");
