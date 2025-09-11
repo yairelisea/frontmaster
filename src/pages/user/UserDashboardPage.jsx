@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/use-toast";
 import { motion } from "framer-motion";
-import { fetchCampaigns, ping } from "@/lib/api";
+import { fetchCampaigns, } from "@/lib/api";
 import {
   PlusCircle,
   BarChart3,
