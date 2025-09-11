@@ -5,7 +5,7 @@ import { createBrowserRouter, RouterProvider, Navigate, Outlet, useLocation } fr
 
 // NO importes RequireAuth, lo definimos inline para evitar el error de archivo faltante
 // import RequireAuth from "./auth/RequireAuth.jsx";
-
+import "./index.css";
 import AdminLayout from "./admin/AdminLayout.jsx";
 import AdminCampaignsPage from "./admin/AdminCampaignsPage.jsx";
 import AdminCampaignDetailPage from "./pages/admin/AdminCampaignDetailPage.jsx";
