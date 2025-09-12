@@ -496,6 +496,19 @@ export const AdminAPI = {
       method: "PATCH",
       body: JSON.stringify(payload),
     }),
+  deleteCampaign: (id) =>
+    _fetchJSON(`${API_BASE}/admin/campaigns/${id}`, {
+      method: "DELETE",
+    }),
+  purgeCampaigns: (ids = []) =>
+    _fetchJSON(`${API_BASE}/admin/campaigns/purge`, {
+      method: "POST",
+      body: JSON.stringify({ ids: Array.isArray(ids) ? ids : [] }),
+    }),
+  runAll: (id) =>
+    _fetchJSON(`${API_BASE}/admin/campaigns/${id}/run-all`, {
+      method: "POST",
+    }),
   assignCampaignToUser: (campaignId, userId) =>
     _fetchJSON(`${API_BASE}/admin/campaigns/${campaignId}/assign`, {
       method: "POST",
@@ -526,3 +539,6 @@ export const adminBuildReport = AdminAPI.buildReport;
 export const adminProcessAnalyses = AdminAPI.processAnalyses;
 export const adminListCampaigns = AdminAPI.listCampaigns;
 export const adminGetCampaign = AdminAPI.getCampaign;
+export const adminDeleteCampaign = AdminAPI.deleteCampaign;
+export const adminPurgeCampaigns = AdminAPI.purgeCampaigns;
+export const adminRunAll = AdminAPI.runAll;

@@ -6,6 +6,8 @@ import {
   adminRecover,
   adminProcessAnalyses,
   adminBuildReport,
+  adminDeleteCampaign,
+  adminRunAll,
   analyzeNewsForCampaign,
 } from "@/lib/api";
 
@@ -152,6 +154,35 @@ function Actions({ c, onDone }) {
     }
   };
 
+  const doDelete = async () => {
+    const check = window.prompt('¿Eliminar la campaña "' + (c.name || '') + '"? Escribe ELIMINAR para confirmar.');
+    if (check !== 'ELIMINAR') return;
+    setBusy(true); setMsg('');
+    try {
+      await adminDeleteCampaign(c.id);
+      setMsg('Eliminada');
+      onDone && onDone();
+    } catch (e) {
+      console.error(e);
+      setMsg('Error al eliminar');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const doRunAll = async () => {
+    setBusy(true); setMsg('');
+    try {
+      await adminRunAll(c.id);
+      setMsg('Run All enviado');
+    } catch (e) {
+      console.error(e);
+      setMsg('Error run-all');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="flex gap-2 items-center">
       <button
@@ -174,6 +205,20 @@ function Actions({ c, onDone }) {
         className="px-3 py-1.5 rounded bg-gray-800 text-white text-xs"
       >
         PDF
+      </button>
+      <button
+        onClick={doRunAll}
+        disabled={busy}
+        className="px-3 py-1.5 rounded bg-gray-700 text-white text-xs"
+      >
+        Run All
+      </button>
+      <button
+        onClick={doDelete}
+        disabled={busy}
+        className="px-3 py-1.5 rounded bg-red-600 text-white text-xs"
+      >
+        Eliminar
       </button>
       {msg && <span className="text-xs text-gray-600">{msg}</span>}
     </div>
