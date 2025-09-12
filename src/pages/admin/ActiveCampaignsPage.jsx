@@ -8,7 +8,6 @@ import {
   adminBuildReport,
   adminDeleteCampaign,
   adminRunAll,
-  analyzeNewsForCampaign,
 } from "@/lib/api";
 
 export default function AdminCampaignsPage() {
@@ -113,14 +112,7 @@ function Actions({ c, onDone }) {
       onDone && onDone();
     } catch (e) {
       console.error(e);
-      // Fallback rápido: análisis IA de lectura para no dejar al usuario sin feedback
-      try {
-        await analyzeNewsForCampaign(c, { overall: true });
-        setMsg("Análisis IA listo (lectura)");
-        onDone && onDone();
-      } catch {
-        setMsg("Error");
-      }
+      setMsg("Error");
     } finally {
       setBusy(false);
     }
@@ -140,19 +132,7 @@ function Actions({ c, onDone }) {
     }
   };
 
-  const doQuickAnalyze = async () => {
-    setBusy(true); setMsg("");
-    try {
-      await analyzeNewsForCampaign(c, { overall: true });
-      setMsg("IA lista (lectura)");
-      onDone && onDone();
-    } catch (e) {
-      console.error(e);
-      setMsg("IA falló");
-    } finally {
-      setBusy(false);
-    }
-  };
+  // sin IA rápida; solo pipeline persistente
 
   const doDelete = async () => {
     const check = window.prompt('¿Eliminar la campaña "' + (c.name || '') + '"? Escribe ELIMINAR para confirmar.');
@@ -191,13 +171,6 @@ function Actions({ c, onDone }) {
         className="px-3 py-1.5 rounded bg-black text-white text-xs"
       >
         {busy ? "…" : "Actualizar"}
-      </button>
-      <button
-        onClick={doQuickAnalyze}
-        disabled={busy}
-        className="px-3 py-1.5 rounded bg-gray-900 text-white text-xs"
-      >
-        IA (rápido)
       </button>
       <button
         onClick={doPDF}

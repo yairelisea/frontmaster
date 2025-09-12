@@ -8,7 +8,7 @@ import {
   fetchCampaignAnalyses,
 } from "@/lib/api";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { analyzeNewsForCampaign, fetchNewsForCampaign } from "@/lib/api";
+import { analyzeNewsForCampaign, fetchNewsForCampaign, userRunPipelineAndFetch } from "@/lib/api";
 
 export default function UserCampaignDetailPage() {
   const { campaignId } = useParams();
@@ -23,6 +23,8 @@ export default function UserCampaignDetailPage() {
 
   const [itemFilters, setItemFilters] = useState({ q: "", status: "", order: "publishedAt", dir: "desc", page: 1, per_page: 25 });
   const [analysisFilters, setAnalysisFilters] = useState({ q: "", order: "createdAt", dir: "desc", page: 1, per_page: 25 });
+  const [pipelineBusy, setPipelineBusy] = useState(false);
+  const [pipelineMsg, setPipelineMsg] = useState("");
 
   const id = campaignId;
 
@@ -124,6 +126,21 @@ export default function UserCampaignDetailPage() {
   useEffect(() => { if (tab === "items") loadItems(); }, [tab, itemFilters]);
   useEffect(() => { if (tab === "analyses") loadAnalyses(); }, [tab, analysisFilters]);
 
+  const onRunPipeline35 = async () => {
+    if (!campaign) return;
+    setPipelineBusy(true); setPipelineMsg("Ejecutando pipeline…");
+    try {
+      const out = await userRunPipelineAndFetch(campaign.id, { target: 35, maxTries: 40, intervalMs: 2000 });
+      if (out.items) setItems(out.items);
+      if (out.analyses) setAnalyses(out.analyses);
+      setPipelineMsg("Pipeline listo (35)");
+    } catch (e) {
+      setPipelineMsg("Error en pipeline: " + (e?.message || ""));
+    } finally {
+      setPipelineBusy(false);
+    }
+  };
+
   if (loading) return <div className="p-4">Cargando…</div>;
   if (!campaign) return <div className="p-4">No se encontró la campaña.</div>;
 
@@ -143,6 +160,12 @@ export default function UserCampaignDetailPage() {
         </TabsList>
 
         <TabsContent value="overview">
+          <div className="flex items-center gap-2 mb-3">
+            <button onClick={onRunPipeline35} disabled={pipelineBusy} className="px-3 py-1.5 rounded bg-emerald-700 text-white text-sm">
+              {pipelineBusy ? "…" : "Generar 35 análisis (pipeline)"}
+            </button>
+            {pipelineMsg && <span className="text-xs text-gray-600">{pipelineMsg}</span>}
+          </div>
           <OverviewSection overview={overview} />
         </TabsContent>
 

@@ -130,7 +130,7 @@ const UserCampaignsPage = () => {
     );
   }, [campaigns, searchTerm]);
 
-  // Lanzar análisis IA de una campaña
+  // Ejecutar pipeline persistente de una campaña
   async function handleAnalyze(campaign) {
     setAnalyzingId(campaign.id);
     setAnalysisError(null);
@@ -138,15 +138,12 @@ const UserCampaignsPage = () => {
     setAnalysisCampaign(campaign);
 
     try {
-      const res = await analyzeNewsForCampaign(campaign, { overall: true });
-      const normalized = normalizeAnalysis(res) || res || null;
-      setAnalysisData(normalized);
-      // cache para "Ver más"
-      saveCachedAnalysis(campaign, normalized);
+      await userRunPipelineAndFetch(campaign.id, { target: 35 });
+      // redirige al detalle (persistido)
+      window.location.href = `/user/campaigns/${campaign.id}`;
       toast({
-        title: 'Análisis completado',
-        description: `Se analizó "${campaign.name}"`,
-        className: 'bg-brand-green text-white',
+        title: 'Pipeline en ejecución',
+        description: `Se está generando el análisis para "${campaign.name}"…`,
       });
     } catch (err) {
       console.error('analyzeCampaign error:', err);
@@ -176,28 +173,9 @@ const UserCampaignsPage = () => {
       });
       return;
     }
-    // 2) si no hay cache, ejecuta un análisis ahora
+    // 2) si no hay cache, sugiere ejecutar el pipeline persistente
     setAnalysisData(null);
-    toast({
-      title: 'Sin resultados guardados',
-      description: 'No encontramos resultados previos. Ejecutando análisis ahora…',
-    });
-    try {
-      setAnalyzingId(campaign.id);
-      const res = await analyzeNewsForCampaign(campaign, { overall: true });
-      const normalized = normalizeAnalysis(res) || res || null;
-      setAnalysisData(normalized);
-      saveCachedAnalysis(campaign, normalized);
-      toast({
-        title: 'Análisis completado',
-        description: `Se analizó “${campaign.name}”.`,
-        className: 'bg-brand-green text-white',
-      });
-    } catch (err) {
-      setAnalysisError(err?.message || 'No se pudo completar el análisis.');
-    } finally {
-      setAnalyzingId(null);
-    }
+    toast({ title: 'Sin resultados guardados', description: 'Ejecuta el pipeline para generar análisis persistidos.' });
   }
 
   // Reemplazado: enviar payload al servicio de PDF del backend

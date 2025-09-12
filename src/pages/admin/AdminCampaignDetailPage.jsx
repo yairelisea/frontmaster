@@ -15,7 +15,6 @@ import {
   adminDownloadCampaignReport,
 } from "@/lib/api";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { analyzeNewsForCampaign, fetchNewsForCampaign } from "@/lib/api";
 
 export default function AdminCampaignDetailPage() {
   const { id } = useParams();
@@ -51,34 +50,7 @@ export default function AdminCampaignDetailPage() {
       }
       setCampaign(c || null);
       let o = null;
-      try {
-        o = await adminFetchCampaignOverview(id);
-      } catch {}
-      if (!o) {
-        // Fallback: intenta calcular overview a partir de análisis IA o noticias
-        try {
-          const res = await analyzeNewsForCampaign(c, { size: 50, overall: true });
-          const items = Array.isArray(res?.items) ? res.items : [];
-          const sentiments = items
-            .map((it) => (typeof it.sentiment === 'number' ? it.sentiment : (typeof it.llm?.sentiment_score === 'number' ? it.llm.sentiment_score : null)))
-            .filter((v) => v != null);
-          const avg_sentiment = sentiments.length ? sentiments.reduce((a,b)=>a+b,0)/sentiments.length : null;
-          const topicCounts = new Map();
-          items.forEach((it) => {
-            const topics = Array.isArray(it.topics) ? it.topics : (Array.isArray(it.llm?.topics) ? it.llm.topics : []);
-            topics.forEach((t) => topicCounts.set(t, (topicCounts.get(t)||0)+1));
-          });
-          const top_topics = Array.from(topicCounts.entries()).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([topic,count])=>({topic,count}));
-          o = {
-            total_items: items.length,
-            analyzed_items: items.length,
-            pending_items: 0,
-            avg_sentiment,
-            top_topics,
-            last_run: null,
-          };
-        } catch {}
-      }
+      try { o = await adminFetchCampaignOverview(id); } catch {}
       setOverview(o);
     } catch (e) {
       setErr(e?.message || "Error cargando datos");
@@ -95,22 +67,7 @@ export default function AdminCampaignDetailPage() {
         return;
       }
       throw new Error('no-items');
-    } catch {
-      // Fallback: usa /news/news con los parámetros de la campaña
-      try {
-        const news = await fetchNewsForCampaign(campaign, { size: itemFilters.per_page, days_back: campaign?.days_back });
-        const items = (news?.items || []).map((it, idx) => ({
-          id: it.id || String(idx),
-          title: it.title,
-          url: it.link || it.url,
-          source: it.source,
-          snippet: it.summary,
-          publishedAt: it.published_at,
-          status: null,
-        }));
-        setItems({ count: items.length, page: 1, per_page: itemFilters.per_page, items });
-      } catch {}
-    }
+    } catch {}
   };
 
   const loadAnalyses = async () => {
@@ -121,25 +78,7 @@ export default function AdminCampaignDetailPage() {
         return;
       }
       throw new Error('no-analyses');
-    } catch {
-      // Fallback: invoca /ai/analyze-news y mapea results
-      try {
-        const res = await analyzeNewsForCampaign(campaign, { size: analysisFilters.per_page, days_back: campaign?.days_back, overall: true });
-        const items = Array.isArray(res?.items) ? res.items.map((it, idx) => ({
-          id: it.id || String(idx),
-          itemId: it.itemId || null,
-          sentiment: it.sentiment ?? it.llm?.sentiment_score ?? null,
-          tone: it.tone || null,
-          topics: it.topics || it.llm?.topics || [],
-          summary: it.summary || it.llm?.summary || '',
-          entities: it.entities || it.llm?.entities || null,
-          stance: it.stance || null,
-          perception: it.perception || null,
-          createdAt: it.createdAt || null,
-        })) : [];
-        setAnalyses({ count: items.length, page: 1, per_page: analysisFilters.per_page, items });
-      } catch {}
-    }
+    } catch {}
   };
 
   useEffect(() => { loadBase(); }, [id]);
@@ -155,18 +94,6 @@ export default function AdminCampaignDetailPage() {
       await loadBase();
       if (tab === "items") await loadItems();
       if (tab === "analyses") await loadAnalyses();
-    } catch {
-      // Fallback: ejecutar análisis IA para mostrar datos aunque el backend de recuperación falle
-      try {
-        setActionMsg("Backend no disponible. Ejecutando análisis IA (solo lectura)…");
-        await analyzeNewsForCampaign(campaign, { overall: true });
-        await loadBase();
-        if (tab === "items") await loadItems();
-        if (tab === "analyses") await loadAnalyses();
-        setActionMsg("Análisis IA listo (modo lectura)");
-      } catch {
-        setActionMsg("Error al actualizar");
-      }
     } finally {
       setBusy(false);
     }
@@ -192,20 +119,7 @@ export default function AdminCampaignDetailPage() {
     }
   };
 
-  const onQuickAnalyze = async () => {
-    setBusy(true); setActionMsg("");
-    try {
-      await analyzeNewsForCampaign(campaign, { overall: true });
-      await loadBase();
-      if (tab === "items") await loadItems();
-      if (tab === "analyses") await loadAnalyses();
-      setActionMsg("Análisis IA listo (lectura)");
-    } catch {
-      setActionMsg("Error en análisis IA");
-    } finally {
-      setBusy(false);
-    }
-  };
+  // (sin IA rápida; solo pipeline persistente)
 
   const onRunAll = async () => {
     setBusy(true); setActionMsg("Ejecutando pipeline…");
@@ -234,7 +148,6 @@ export default function AdminCampaignDetailPage() {
           <button onClick={loadBase} disabled={loading || busy} className="px-3 py-1.5 rounded bg-gray-200 text-gray-900 text-sm">{loading ? "Cargando…" : "Refrescar"}</button>
           <button onClick={onRecover} disabled={busy} className="px-3 py-1.5 rounded bg-black text-white text-sm">{busy ? "…" : "Actualizar (buscar + analizar)"}</button>
           <button onClick={onRunAll} disabled={busy} className="px-3 py-1.5 rounded bg-emerald-700 text-white text-sm">Run All</button>
-          <button onClick={onQuickAnalyze} disabled={busy} className="px-3 py-1.5 rounded bg-gray-900 text-white text-sm">IA (rápido)</button>
           <button onClick={onPDF} disabled={busy} className="px-3 py-1.5 rounded bg-gray-800 text-white text-sm">PDF</button>
         </div>
       </div>

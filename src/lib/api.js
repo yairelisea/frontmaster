@@ -634,3 +634,63 @@ export async function adminDownloadCampaignReport(campaignId, filename = 'report
   document.body.appendChild(a); a.click();
   a.remove(); URL.revokeObjectURL(url);
 }
+
+// =============================================
+// User pipeline: 35 items + per-item analysis
+// =============================================
+async function recoverWithRetry(campaignId, retries = 2, delayMs = 1200) {
+  const id = _asId(campaignId);
+  for (let i = 0; i <= retries; i++) {
+    try {
+      await apiFetch(`/search-local/campaign/${id}`, { method: 'POST' });
+      return true;
+    } catch (e) {
+      if (i === retries) throw e;
+    }
+    await sleep(delayMs);
+  }
+}
+
+async function processPendingWithRetry(campaignId, limit = 35, retries = 2, delayMs = 1200) {
+  const id = _asId(campaignId);
+  const qs = new URLSearchParams({ campaignId: String(id), limit: String(limit) });
+  for (let i = 0; i <= retries; i++) {
+    try {
+      await apiFetch(`/analyses/process_pending?${qs.toString()}`, { method: 'POST' });
+      return true;
+    } catch (e) {
+      if (i === retries) throw e;
+    }
+    await sleep(delayMs);
+  }
+}
+
+export async function userRunPipelineAndFetch(campaign, {
+  target = 35,
+  maxTries = 40,
+  intervalMs = 2000,
+} = {}) {
+  const id = _asId(campaign);
+  if (!id) throw new Error('campaignId requerido');
+
+  await recoverWithRetry(id);
+  await processPendingWithRetry(id, target);
+
+  let items = null;
+  let analyses = null;
+
+  for (let i = 0; i < maxTries; i++) {
+    try {
+      // lee persistidos
+      const it = await fetchCampaignItems(id, { per_page: target, order: 'publishedAt', dir: 'desc' });
+      const an = await fetchCampaignAnalyses(id, { per_page: target, order: 'createdAt', dir: 'desc' });
+      const icount = Number(it?.count || (Array.isArray(it?.items) ? it.items.length : 0));
+      const acount = Number(an?.count || (Array.isArray(an?.items) ? an.items.length : 0));
+      items = it; analyses = an;
+      if (acount >= Math.min(target, icount) && acount > 0) break;
+    } catch {}
+    await sleep(intervalMs);
+  }
+
+  return { items: items || { count: 0, items: [] }, analyses: analyses || { count: 0, items: [] } };
+}
