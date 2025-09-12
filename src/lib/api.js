@@ -558,9 +558,7 @@ export const adminPurgeCampaigns = AdminAPI.purgeCampaigns;
 export const adminRunAll = AdminAPI.runAll;
 export const getCampaignVariants = AdminAPI.getVariants;
 
-// Compat: alias solicitados explícitamente
-export const fetchCampaigns = listCampaigns;
-export const fetchCampaignById = getCampaign;
+// Compat: alias solicitados explícitamente (evitar duplicados)
 export const adminRecoverCampaign = (id) => AdminAPI.recoverCampaign(id);
 export const adminProcessAnalysesCompat = (id, lim) => AdminAPI.processAnalyses(id, lim);
 export const adminBuildReportCompat = (payload) => AdminAPI.buildReport(payload);
