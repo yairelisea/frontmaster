@@ -10,6 +10,7 @@ import { CampaignTable } from '@/components/user/campaigns/CampaignTable';
 import { Link, useLocation } from 'react-router-dom';
  import {
      fetchCampaigns,
+     adminListCampaigns,
      analyzeNewsForCampaign,
      recoverCampaign,
      searchLocal,
@@ -76,13 +77,25 @@ const UserCampaignsPage = () => {
   async function loadCampaigns() {
     try {
       setLoading(true);
-      const list = await fetchCampaigns();
+      let list = [];
+      try {
+        list = await fetchCampaigns();
+      } catch (e1) {
+        // Fallback: si el endpoint de usuario /campaigns responde 504 o falla,
+        // intenta usar el listado admin si el token lo permite.
+        try {
+          list = await adminListCampaigns();
+          toast({ title: 'Usando listado admin', description: 'Se cargaron campañas con permisos de administrador.' });
+        } catch (e2) {
+          throw e1;
+        }
+      }
       setCampaigns(Array.isArray(list) ? list : []);
     } catch (err) {
       console.error('fetchCampaigns error:', err);
       toast({
         title: 'Error',
-        description: 'No se pudieron cargar las campañas.',
+        description: 'No se pudieron cargar las campañas. Intenta nuevamente.',
         variant: 'destructive',
       });
     } finally {
