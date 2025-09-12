@@ -16,6 +16,7 @@ import {
 } from "@/lib/api";
 import { downloadAnalysisPDFViaAPI } from "@/lib/report";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { getCampaignVariants, ingestCampaign } from "@/lib/api";
 
 export default function AdminCampaignDetailPage() {
   const { id } = useParams();
@@ -23,6 +24,7 @@ export default function AdminCampaignDetailPage() {
   const [campaign, setCampaign] = useState(null);
   const [overview, setOverview] = useState(null);
   const [items, setItems] = useState({ count: 0, page: 1, per_page: 25, items: [] });
+  const [variants, setVariants] = useState([]);
   const [analyses, setAnalyses] = useState({ count: 0, page: 1, per_page: 25, items: [] });
   const [tab, setTab] = useState("overview");
   const [loading, setLoading] = useState(true);
@@ -50,6 +52,11 @@ export default function AdminCampaignDetailPage() {
         }
       }
       setCampaign(c || null);
+      try {
+        const v = await getCampaignVariants(id);
+        const arr = Array.isArray(v) ? v : (Array.isArray(v?.variants) ? v.variants : (Array.isArray(v?.search_variants) ? v.search_variants : []));
+        setVariants(arr || []);
+      } catch {}
       let o = null;
       try { o = await adminFetchCampaignOverview(id); } catch {}
       setOverview(o);
@@ -183,6 +190,17 @@ export default function AdminCampaignDetailPage() {
         <div className="text-xs uppercase tracking-wide text-gray-500">Query</div>
         <div className="text-lg font-semibold">{campaign.query}</div>
         <div className="text-sm text-gray-800 mt-1">size: {campaign.size} · días: {campaign.days_back} · país: {campaign.country}</div>
+      </div>
+
+      <div className="bg-white rounded-xl shadow-sm p-4">
+        <div className="text-sm font-medium mb-2">Variantes de búsqueda</div>
+        <div className="flex flex-wrap gap-2 max-h-40 overflow-auto">
+          {variants?.length ? variants.map((t,i)=> (
+            <span key={i} className="text-xs bg-gray-100 rounded px-2 py-1">{t}</span>
+          )) : (
+            <span className="text-sm text-gray-500">Sin variantes</span>
+          )}
+        </div>
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>

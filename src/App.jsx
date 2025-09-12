@@ -11,7 +11,7 @@ import AuthLayout from "@/layouts/AuthLayout";
 import AdminDashboardPage from "@/pages/admin/AdminDashboardPage";
 import UserManagementPage from "@/pages/admin/UserManagementPage";
 import PlansSubscriptionsPage from "@/pages/admin/PlansSubscriptionsPage";
-import ActiveCampaignsPage from "@/pages/admin/ActiveCampaignsPage";
+import AdminCampaignsPage from "@/pages/admin/AdminCampaignsPage";
 import AdminCampaignDetailPage from "@/pages/admin/AdminCampaignDetailPage";
 import SocialConnectionsPage from "@/pages/admin/SocialConnectionsPage";
 import LogsActivityPage from "@/pages/admin/LogsActivityPage";
@@ -61,7 +61,7 @@ function App() {
             <Route path="dashboard" element={<AdminDashboardPage />} />
             <Route path="users" element={<UserManagementPage />} />
             <Route path="plans" element={<PlansSubscriptionsPage />} />
-            <Route path="campaigns" element={<ActiveCampaignsPage />} />
+            <Route path="campaigns" element={<AdminCampaignsPage />} />
             <Route path="campaigns/:id" element={<AdminCampaignDetailPage />} />
             <Route path="social" element={<SocialConnectionsPage />} />
             <Route path="logs" element={<LogsActivityPage />} />

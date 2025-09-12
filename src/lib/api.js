@@ -486,6 +486,19 @@ export const AdminAPI = {
   // Campaigns
   listCampaigns: () => _fetchJSON(`${API_BASE}/admin/campaigns`),
   getCampaign: (id) => _fetchJSON(`${API_BASE}/admin/campaigns/${id}`),
+  getVariants: async (id) => {
+    // Intenta endpoint dedicado; si 404, fallback a campaign.search_variants
+    try {
+      return await _fetchJSON(`${API_BASE}/admin/campaigns/${id}/variants`);
+    } catch (e) {
+      const msg = String(e?.message || '');
+      if (msg.includes(' 404 ') || msg.toLowerCase().includes('not found')) {
+        const camp = await _fetchJSON(`${API_BASE}/admin/campaigns/${id}`);
+        return camp?.search_variants || camp?.variants || [];
+      }
+      throw e;
+    }
+  },
   createCampaign: (payload) =>
     _fetchJSON(`${API_BASE}/admin/campaigns`, {
       method: "POST",
@@ -543,6 +556,14 @@ export const adminGetCampaign = AdminAPI.getCampaign;
 export const adminDeleteCampaign = AdminAPI.deleteCampaign;
 export const adminPurgeCampaigns = AdminAPI.purgeCampaigns;
 export const adminRunAll = AdminAPI.runAll;
+export const getCampaignVariants = AdminAPI.getVariants;
+
+// Compat: alias solicitados explícitamente
+export const fetchCampaigns = listCampaigns;
+export const fetchCampaignById = getCampaign;
+export const adminRecoverCampaign = (id) => AdminAPI.recoverCampaign(id);
+export const adminProcessAnalysesCompat = (id, lim) => AdminAPI.processAnalyses(id, lim);
+export const adminBuildReportCompat = (payload) => AdminAPI.buildReport(payload);
 
 // =====================================================
 // Advanced helpers (retry + polling + binary downloads)
