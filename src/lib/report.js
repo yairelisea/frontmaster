@@ -1,7 +1,11 @@
 // src/lib/report.js
 // Estrategia híbrida: 1) intento pop-up/print, 2) fallback a backend /reports/pdf
 
-const API = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
+const API = (
+  (typeof window !== 'undefined' && window.__API_BASE__) ||
+  import.meta.env.VITE_API_URL ||
+  '/api'
+).replace(/\/+$/, "");
 
 // ---------- Utilidades ----------
 function esc(str) {

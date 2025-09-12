@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
 import { ArrowLeft, Save } from "lucide-react";
 import { motion } from "framer-motion";
-import { createCampaign, analyzeCampaign } from "@/lib/api";
+import { createCampaign, analyzeNewsForCampaign } from "@/lib/api";
 
 // Calcula days_back a partir de fechas (1..60)
 function daysDiffClamp(start, end) {
@@ -91,7 +91,7 @@ const CampaignFormPage = () => {
       // 2) Lanzar análisis IA de inmediato
       let analysis = null;
       try {
-        analysis = await analyzeCampaign(created);
+        analysis = await analyzeNewsForCampaign(created, { overall: true });
       } catch (err) {
         analysis = {
           _error: err?.message || "No se pudo completar el análisis.",

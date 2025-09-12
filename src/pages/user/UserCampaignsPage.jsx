@@ -184,7 +184,7 @@ const UserCampaignsPage = () => {
     });
     try {
       setAnalyzingId(campaign.id);
-      const res = await analyzeCampaign(campaign);
+      const res = await analyzeNewsForCampaign(campaign, { overall: true });
       const normalized = normalizeAnalysis(res) || res || null;
       setAnalysisData(normalized);
       saveCachedAnalysis(campaign, normalized);
@@ -207,8 +207,9 @@ const UserCampaignsPage = () => {
       await downloadAnalysisPDFViaAPI({
         campaign: analysisCampaign,
         analysis: analysisData,
-        apiBase: import.meta.env.VITE_API_URL, // tu backend (ej. https://masterback.onrender.com)
-        // authToken: ... si usas JWT, inclúyelo aquí (p.ej. localStorage.getItem('token'))
+        apiBase: (typeof window !== 'undefined' && window.__API_BASE__) || '/api',
+        authToken:
+          (typeof window !== 'undefined' && (localStorage.getItem('access_token') || localStorage.getItem('token'))) || undefined,
       });
     } catch (e) {
       console.error("PDF export error:", e);
