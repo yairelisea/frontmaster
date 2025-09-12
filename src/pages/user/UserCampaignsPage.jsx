@@ -370,15 +370,7 @@ const UserCampaignsPage = () => {
                   Exportar PDF
                 </Button>
               ) : null}
-              {analysisCampaign && (
-                <Button
-                  onClick={() => handleRecoverCampaign(analysisCampaign)}
-                  disabled={recovering}
-                  className="bg-amber-500 hover:bg-amber-600 text-primary-foreground"
-                >
-                  {recovering ? 'Recuperando...' : 'Recuperar resultados'}
-                </Button>
-              )}
+              {/* Botón de recuperar deshabilitado/oculto por solicitud */}
             </div>
           </CardHeader>
           <CardContent className="space-y-4">

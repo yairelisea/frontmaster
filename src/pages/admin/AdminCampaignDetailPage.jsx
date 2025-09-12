@@ -14,6 +14,7 @@ import {
   adminRunAllAndWait,
   adminDownloadCampaignReport,
 } from "@/lib/api";
+import { analyzeNewsForCampaign } from "@/lib/api";
 import { downloadAnalysisPDFViaAPI } from "@/lib/report";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ingestCampaign } from "@/lib/api";
@@ -145,7 +146,46 @@ export default function AdminCampaignDetailPage() {
     }
   };
 
-  // (sin IA rápida; solo pipeline persistente)
+  // Analizar IA (vista rápida, sin persistir)
+  const onQuickAnalyze = async () => {
+    if (!campaign) return;
+    setBusy(true); setActionMsg("Analizando IA (vista rápida)…");
+    try {
+      const res = await analyzeNewsForCampaign(campaign, { overall: true });
+      const iaItems = Array.isArray(res?.items) ? res.items : [];
+      // Mapea a shape de ItemsSection
+      const mappedItems = iaItems.map((it, idx) => ({
+        id: it.id || String(idx),
+        title: it.title || it.headline || `Nota ${idx + 1}`,
+        url: it.url || it.link || "",
+        source: typeof it.source === 'string' ? it.source : (it.source?.name || ''),
+        snippet: it.summary || it.llm?.summary || '',
+        publishedAt: it.published_at || it.date || null,
+        status: null,
+      }));
+      setItems({ count: mappedItems.length, page: 1, per_page: 25, items: mappedItems });
+
+      // Mapea a shape de AnalysesSection
+      const mappedAnalyses = iaItems.map((it, idx) => ({
+        id: it.id || String(idx),
+        itemId: it.itemId || null,
+        sentiment: typeof it.sentiment === 'number' ? it.sentiment : (typeof it.llm?.sentiment_score === 'number' ? it.llm.sentiment_score : null),
+        tone: it.tone || null,
+        topics: Array.isArray(it.topics) ? it.topics : (Array.isArray(it.llm?.topics) ? it.llm.topics : []),
+        summary: it.summary || it.llm?.summary || '',
+        entities: it.entities || it.llm?.entities || null,
+        stance: it.stance || null,
+        perception: it.perception || null,
+        createdAt: it.createdAt || null,
+      }));
+      setAnalyses({ count: mappedAnalyses.length, page: 1, per_page: 25, items: mappedAnalyses });
+      setActionMsg("Análisis IA listo (vista rápida)");
+    } catch (e) {
+      setActionMsg("Error en análisis IA");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const onRunAll = async () => {
     setBusy(true); setActionMsg("Ejecutando pipeline…");
@@ -172,8 +212,8 @@ export default function AdminCampaignDetailPage() {
         <h1 className="text-xl font-semibold">{campaign.name}</h1>
         <div className="flex items-center gap-2">
           <button onClick={loadBase} disabled={loading || busy} className="px-3 py-1.5 rounded bg-gray-200 text-gray-900 text-sm">{loading ? "Cargando…" : "Refrescar"}</button>
-          <button onClick={onRecover} disabled={busy} className="px-3 py-1.5 rounded bg-black text-white text-sm">{busy ? "…" : "Actualizar (buscar + analizar)"}</button>
           <button onClick={onRunAll} disabled={busy} className="px-3 py-1.5 rounded bg-emerald-700 text-white text-sm">Run All</button>
+          <button onClick={onQuickAnalyze} disabled={busy} className="px-3 py-1.5 rounded bg-gray-900 text-white text-sm">Analizar IA</button>
           <button onClick={onPDF} disabled={busy} className="px-3 py-1.5 rounded bg-gray-800 text-white text-sm">PDF</button>
         </div>
       </div>
