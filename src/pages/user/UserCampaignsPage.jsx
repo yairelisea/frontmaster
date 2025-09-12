@@ -10,13 +10,12 @@ import { CampaignTable } from '@/components/user/campaigns/CampaignTable';
 import { Link, useLocation } from 'react-router-dom';
  import {
      fetchCampaigns,
-     adminListCampaigns,
-     analyzeNewsForCampaign,
      recoverCampaign,
      searchLocal,
      normalizeAnalysis,
      cacheKeyForCampaign,
      saveAnalysisCache,
+     userRunPipelineAndFetch,
    } from '@/lib/api';
 import * as report from '@/lib/report';
 import { downloadAnalysisPDFViaAPI } from "@/lib/report";
@@ -231,9 +230,9 @@ const UserCampaignsPage = () => {
              query: camp.query,
             city: camp.city_keywords || camp.city || '',
              country: camp.country || 'MX',
-             lang: camp.lang || 'es-419',
-             days_back: camp.days_back ?? 14,
-             limit: camp.size ?? 25,
+            lang: camp.lang || 'es-419',
+            days_back: Math.min(camp.days_back ?? 14, 60),
+            limit: camp.size ?? 25,
            });
            console.log('[searchLocal fallback] result:', adHoc);
            finalAnalysis = normalizeAnalysis({ items: adHoc?.items || [] });
@@ -272,7 +271,7 @@ const UserCampaignsPage = () => {
             city: camp.city_keywords || camp.city || '',
             country: camp.country || 'MX',
             lang: camp.lang || 'es-419',
-            days_back: camp.days_back ?? 14,
+            days_back: Math.min(camp.days_back ?? 14, 60),
             limit: camp.size ?? 25,
           });
           const finalAnalysis = normalizeAnalysis({ items: adHoc?.items || [] });
