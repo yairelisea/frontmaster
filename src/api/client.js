@@ -2,8 +2,8 @@
 
 // ====== Base URL ======
 export const API_BASE =
-  (typeof window !== "undefined" ? window.__API_BASE__ : null) ||
   (import.meta.env && import.meta.env.VITE_API_URL) ||
+  (typeof window !== "undefined" ? window.__API_BASE__ : null) ||
   "/api";
 
 // ====== Token helpers ======

@@ -3,10 +3,9 @@
 // =====================
 // Config
 // =====================
-const RUNTIME_BASE =
-  (typeof window !== "undefined" && window.__API_BASE__) || null;
+const RUNTIME_BASE = (typeof window !== "undefined" && window.__API_BASE__) || null;
 export const API_BASE = (
-  RUNTIME_BASE || import.meta.env?.VITE_API_URL || "/api"
+  import.meta.env?.VITE_API_URL || RUNTIME_BASE || "/api"
 ).replace(/\/+$/, "");
 
 // =====================
@@ -196,7 +195,7 @@ export async function processPending(campaignId, limit = 200) {
 
 export async function recoverCampaign(campaignId) {
   const id = _asId(campaignId);
-  return apiFetch(`/search-local/campaign/${id}`, { method: "POST" });
+  return apiFetch(`/search-local/campaign/${id}?background=true`, { method: "POST" });
 }
 
 export async function searchLocal({ query, city = "", country = "MX", lang = "es-419", days_back = 14, limit = 25 }) {
@@ -530,7 +529,7 @@ export const AdminAPI = {
 
   // Operations
   recoverCampaign: (campaignId) =>
-    _fetchJSON(`${API_BASE}/search-local/campaign/${campaignId}`, {
+    _fetchJSON(`${API_BASE}/search-local/campaign/${campaignId}?background=true`, {
       method: "POST",
     }),
   processAnalyses: (campaignId, limit = 200) => {
@@ -662,7 +661,7 @@ async function recoverWithRetry(campaignId, retries = 2, delayMs = 1200) {
   const id = _asId(campaignId);
   for (let i = 0; i <= retries; i++) {
     try {
-      await apiFetch(`/search-local/campaign/${id}`, { method: 'POST' });
+      await apiFetch(`/search-local/campaign/${id}?background=true`, { method: 'POST' });
       return true;
     } catch (e) {
       if (i === retries) throw e;
@@ -693,8 +692,7 @@ export async function userRunPipelineAndFetch(campaign, {
   const id = _asId(campaign);
   if (!id) throw new Error('campaignId requerido');
 
-  await recoverWithRetry(id);
-  await processPendingWithRetry(id, target);
+  try { await adminRunAll(id); } catch {}
 
   let items = null;
   let analyses = null;
