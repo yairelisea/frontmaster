@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { fetchCampaigns } from "@/lib/api";
+import { fetchCampaigns, adminDeleteCampaign } from "@/lib/api";
+import { Button } from "@/components/ui/button";
 
 export default function AdminCampaignsPage() {
   const [list, setList] = useState([]);
   const [q, setQ] = useState("");
   const [err, setErr] = useState("");
+  const [deletingId, setDeletingId] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -50,6 +52,7 @@ export default function AdminCampaignsPage() {
               <th className="text-left p-2">Días</th>
               <th className="text-left p-2">País</th>
               <th className="text-left p-2">Creada</th>
+              <th className="text-left p-2">Acciones</th>
             </tr>
           </thead>
           <tbody>
@@ -67,6 +70,32 @@ export default function AdminCampaignsPage() {
                     <td className="p-2">{c.days_back}</td>
                     <td className="p-2">{c.country}</td>
                     <td className="p-2">{c.createdAt ? new Date(c.createdAt).toLocaleString() : "—"}</td>
+                    <td className="p-2">
+                      <div className="flex items-center gap-2">
+                        <Link to={`/admin/campaigns/${c.id}`} className="text-xs underline">Ver</Link>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          disabled={deletingId === c.id}
+                          onClick={async () => {
+                            const check = window.prompt(`¿Eliminar la campaña "${c.name || c.query || c.id}"? Escribe ELIMINAR para confirmar.`);
+                            if (check !== 'ELIMINAR') return;
+                            setDeletingId(c.id);
+                            try {
+                              await adminDeleteCampaign(c.id);
+                              // recargar lista local
+                              setList(prev => prev.filter(x => x.id !== c.id));
+                            } catch (e) {
+                              alert(e?.message || 'No se pudo eliminar');
+                            } finally {
+                              setDeletingId(null);
+                            }
+                          }}
+                        >
+                          {deletingId === c.id ? 'Eliminando…' : 'Eliminar'}
+                        </Button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
                 {filtered.length === 0 && (
@@ -80,4 +109,3 @@ export default function AdminCampaignsPage() {
     </div>
   );
 }
-
