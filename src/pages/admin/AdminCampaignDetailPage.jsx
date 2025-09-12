@@ -14,6 +14,7 @@ import {
   adminRunAllAndWait,
   adminDownloadCampaignReport,
 } from "@/lib/api";
+import { downloadAnalysisPDFViaAPI } from "@/lib/report";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 export default function AdminCampaignDetailPage() {
@@ -108,9 +109,32 @@ export default function AdminCampaignDetailPage() {
     } catch {
       // Fallback al builder genérico si el endpoint binario no existe
       try {
-        const r = await adminBuildReport(campaign || { name: "", query: "" });
-        if (r?.url) window.open(r.url, "_blank");
-        else setActionMsg("PDF generado");
+        // Intentar construir payload con análisis persistidos
+        let analysisPayload = null;
+        try {
+          const an = await adminFetchCampaignAnalyses(id, { per_page: 50, order: 'createdAt', dir: 'desc' });
+          const items = Array.isArray(an?.items) ? an.items.map((a, idx) => ({
+            title: a.title || `Item ${idx + 1}`,
+            summary: a.summary || '',
+            sentiment_score: typeof a.sentiment === 'number' ? a.sentiment : null,
+            topics: Array.isArray(a.topics) ? a.topics : [],
+          })) : [];
+          analysisPayload = { items };
+        } catch {}
+
+        if (analysisPayload && analysisPayload.items.length > 0) {
+          await downloadAnalysisPDFViaAPI({
+            campaign: campaign || {},
+            analysis: analysisPayload,
+            apiBase: (typeof window !== 'undefined' && window.__API_BASE__) || '/api',
+            authToken: (typeof window !== 'undefined' && (localStorage.getItem('access_token') || localStorage.getItem('token'))) || undefined,
+          });
+          setActionMsg("PDF generado");
+        } else {
+          const r = await adminBuildReport(campaign || { name: "", query: "" });
+          if (r?.url) window.open(r.url, "_blank");
+          else setActionMsg("PDF generado");
+        }
       } catch {
         setActionMsg("Error al generar PDF");
       }

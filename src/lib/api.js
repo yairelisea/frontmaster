@@ -521,10 +521,11 @@ export const AdminAPI = {
       method: "POST",
     }),
   processAnalyses: (campaignId, limit = 200) => {
-    const url = new URL(`${API_BASE}/analyses/process_pending`);
-    if (campaignId) url.searchParams.set("campaignId", campaignId);
-    if (limit) url.searchParams.set("limit", String(limit));
-    return _fetchJSON(url.toString(), { method: "POST" });
+    const qs = new URLSearchParams();
+    if (campaignId) qs.set("campaignId", String(campaignId));
+    if (limit) qs.set("limit", String(limit));
+    const path = `/analyses/process_pending?${qs.toString()}`;
+    return _fetchJSON(`${API_BASE}${path}`, { method: "POST" });
   },
   buildReport: (payload) =>
     _fetchJSON(`${API_BASE}/reports/pdf`, {
