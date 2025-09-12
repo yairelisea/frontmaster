@@ -11,6 +11,8 @@ import {
   adminRecover,
   adminProcessAnalyses,
   adminBuildReport,
+  adminRunAllAndWait,
+  adminDownloadCampaignReport,
 } from "@/lib/api";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { analyzeNewsForCampaign, fetchNewsForCampaign } from "@/lib/api";
@@ -173,11 +175,18 @@ export default function AdminCampaignDetailPage() {
   const onPDF = async () => {
     setBusy(true); setActionMsg("");
     try {
-      const r = await adminBuildReport(campaign || { name: "", query: "" });
-      if (r?.url) window.open(r.url, "_blank");
-      else setActionMsg("PDF generado");
+      // Intenta endpoint binario de admin
+      await adminDownloadCampaignReport(id, `${campaign?.name || campaign?.query || 'reporte'}.pdf`);
+      setActionMsg("PDF descargado");
     } catch {
-      setActionMsg("Error al generar PDF");
+      // Fallback al builder genérico si el endpoint binario no existe
+      try {
+        const r = await adminBuildReport(campaign || { name: "", query: "" });
+        if (r?.url) window.open(r.url, "_blank");
+        else setActionMsg("PDF generado");
+      } catch {
+        setActionMsg("Error al generar PDF");
+      }
     } finally {
       setBusy(false);
     }
@@ -198,6 +207,22 @@ export default function AdminCampaignDetailPage() {
     }
   };
 
+  const onRunAll = async () => {
+    setBusy(true); setActionMsg("Ejecutando pipeline…");
+    try {
+      await adminRunAllAndWait(id, { maxTries: 40, intervalMs: 2000 });
+      // Vuelve a cargar overview/items/analyses persistidos
+      await loadBase();
+      if (tab === "items") await loadItems();
+      if (tab === "analyses") await loadAnalyses();
+      setActionMsg("Pipeline listo");
+    } catch (e) {
+      setActionMsg("Error en pipeline");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (loading) return <div className="p-4">Cargando…</div>;
   if (!campaign) return <div className="p-4">No se encontró la campaña.</div>;
 
@@ -208,6 +233,7 @@ export default function AdminCampaignDetailPage() {
         <div className="flex items-center gap-2">
           <button onClick={loadBase} disabled={loading || busy} className="px-3 py-1.5 rounded bg-gray-200 text-gray-900 text-sm">{loading ? "Cargando…" : "Refrescar"}</button>
           <button onClick={onRecover} disabled={busy} className="px-3 py-1.5 rounded bg-black text-white text-sm">{busy ? "…" : "Actualizar (buscar + analizar)"}</button>
+          <button onClick={onRunAll} disabled={busy} className="px-3 py-1.5 rounded bg-emerald-700 text-white text-sm">Run All</button>
           <button onClick={onQuickAnalyze} disabled={busy} className="px-3 py-1.5 rounded bg-gray-900 text-white text-sm">IA (rápido)</button>
           <button onClick={onPDF} disabled={busy} className="px-3 py-1.5 rounded bg-gray-800 text-white text-sm">PDF</button>
         </div>

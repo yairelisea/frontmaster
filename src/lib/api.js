@@ -542,3 +542,95 @@ export const adminGetCampaign = AdminAPI.getCampaign;
 export const adminDeleteCampaign = AdminAPI.deleteCampaign;
 export const adminPurgeCampaigns = AdminAPI.purgeCampaigns;
 export const adminRunAll = AdminAPI.runAll;
+
+// =====================================================
+// Advanced helpers (retry + polling + binary downloads)
+// =====================================================
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+export async function fetchWithRetry(path, opts = {}, retries = 2, delayMs = 1200) {
+  const url = `${API_BASE}${path}`;
+  for (let i = 0; i <= retries; i++) {
+    try {
+      const res = await fetch(url, {
+        ...opts,
+        headers: {
+          'Content-Type': 'application/json',
+          ..._authHeader(),
+          ...(opts.headers || {}),
+        },
+      });
+      if (res.ok) return res;
+      if (res.status !== 504) {
+        const txt = await res.text().catch(() => '');
+        throw new Error(`${opts.method || 'GET'} ${path} -> ${res.status} :: ${txt}`);
+      }
+      // si 504, reintenta
+    } catch (e) {
+      if (i === retries) throw e;
+    }
+    await sleep(delayMs);
+  }
+  throw new Error(`${opts.method || 'GET'} ${path} -> 504 (retries exhausted)`);
+}
+
+// Warmup + list (usuario)
+export async function listUserCampaignsWithRetry() {
+  try { await fetch(`${API_BASE}/health`, { cache: 'no-store' }); } catch {}
+  const r = await fetchWithRetry(`/campaigns`, { method: 'GET' });
+  const text = await r.text().catch(() => '');
+  try { return JSON.parse(text || '[]'); } catch { return []; }
+}
+
+// Overview / Items / Analyses (con retry)
+export async function adminGetCampaignOverview(id) {
+  const r = await fetchWithRetry(`/admin/campaigns/${id}/overview`, { method: 'GET' });
+  return r.json();
+}
+
+export async function userGetCampaignItems(id, { per_page = 50, order = 'publishedAt', dir = 'desc' } = {}) {
+  const r = await fetchWithRetry(`/campaigns/${id}/items?per_page=${per_page}&order=${order}&dir=${dir}`, { method: 'GET' });
+  return r.json();
+}
+
+export async function userGetCampaignAnalyses(id, { per_page = 50, order = 'createdAt', dir = 'desc' } = {}) {
+  const r = await fetchWithRetry(`/campaigns/${id}/analyses?per_page=${per_page}&order=${order}&dir=${dir}`, { method: 'GET' });
+  return r.json();
+}
+
+// Run-all + polling (admin)
+export async function adminRunAllAndWait(id, { maxTries = 40, intervalMs = 2000 } = {}) {
+  await adminRunAll(id);
+  let last = null;
+  for (let i = 0; i < maxTries; i++) {
+    try {
+      last = await adminGetCampaignOverview(id);
+      // heurística de salida: si overview trae totales, intenta decidir por pending
+      const total = Number(last?.total_items || 0);
+      const analyzed = Number(last?.analyzed_items || 0);
+      const pending = Number(last?.pending_items || Math.max(total - analyzed, 0));
+      if (analyzed > 0 || pending === 0) return last;
+    } catch {}
+    await sleep(intervalMs);
+  }
+  return last;
+}
+
+// Descargar reporte binario (admin)
+export async function adminDownloadCampaignReport(campaignId, filename = 'reporte.pdf') {
+  const res = await fetch(`${API_BASE}/admin/campaigns/${campaignId}/report`, {
+    method: 'POST',
+    headers: { ..._authHeader() },
+  });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => '');
+    throw new Error(`POST /admin/campaigns/${campaignId}/report -> ${res.status} :: ${txt}`);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  a.remove(); URL.revokeObjectURL(url);
+}
