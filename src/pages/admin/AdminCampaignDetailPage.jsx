@@ -6,13 +6,13 @@ import {
   adminListCampaigns,
   fetchCampaignById,
   adminFetchCampaignOverview,
-  adminFetchCampaignItems,
-  adminFetchCampaignAnalyses,
-  adminRecover,
-  adminProcessAnalyses,
-  adminBuildReport,
   adminRunAllAndWait,
   adminDownloadCampaignReport,
+  fetchCampaignItems,
+  fetchCampaignAnalyses,
+  recoverCampaign,
+  processPending,
+  buildReportFromCampaign,
 } from "@/lib/api";
 import { analyzeNewsForCampaign } from "@/lib/api";
 import { downloadAnalysisPDFViaAPI } from "@/lib/report";
@@ -65,23 +65,17 @@ export default function AdminCampaignDetailPage() {
 
   const loadItems = async () => {
     try {
-      const data = await adminFetchCampaignItems(id, itemFilters);
-      if (data && typeof data === 'object' && Array.isArray(data.items)) {
-        setItems(data);
-        return;
-      }
-      throw new Error('no-items');
+      const arr = await fetchCampaignItems(id);
+      const itemsArr = Array.isArray(arr) ? arr : (Array.isArray(arr?.items) ? arr.items : []);
+      setItems({ items: itemsArr, count: itemsArr.length, page: 1, per_page: 25 });
     } catch {}
   };
 
   const loadAnalyses = async () => {
     try {
-      const data = await adminFetchCampaignAnalyses(id, analysisFilters);
-      if (data && typeof data === 'object' && Array.isArray(data.items)) {
-        setAnalyses(data);
-        return;
-      }
-      throw new Error('no-analyses');
+      const arr = await fetchCampaignAnalyses(id);
+      const itemsArr = Array.isArray(arr) ? arr : (Array.isArray(arr?.items) ? arr.items : []);
+      setAnalyses({ items: itemsArr, count: itemsArr.length, page: 1, per_page: 25 });
     } catch {}
   };
 
@@ -92,9 +86,8 @@ export default function AdminCampaignDetailPage() {
   const onRecover = async () => {
     setBusy(true); setActionMsg("");
     try {
-      await adminRecover(id);
-      await adminProcessAnalyses(id);
-      setActionMsg("Actualizada (buscar + analizar) OK");
+      await recoverCampaign(id);
+      setActionMsg("Actualizada OK");
       await loadBase();
       if (tab === "items") await loadItems();
       if (tab === "analyses") await loadAnalyses();
@@ -106,41 +99,10 @@ export default function AdminCampaignDetailPage() {
   const onPDF = async () => {
     setBusy(true); setActionMsg("");
     try {
-      // Intenta endpoint binario de admin
-      await adminDownloadCampaignReport(id, `${campaign?.name || campaign?.query || 'reporte'}.pdf`);
-      setActionMsg("PDF descargado");
+      await buildReportFromCampaign(id, `${campaign?.name || campaign?.query || "reporte"}.pdf`);
+      setActionMsg("PDF generado");
     } catch {
-      // Fallback al builder genérico si el endpoint binario no existe
-      try {
-        // Intentar construir payload con análisis persistidos
-        let analysisPayload = null;
-        try {
-          const an = await adminFetchCampaignAnalyses(id, { per_page: 50, order: 'createdAt', dir: 'desc' });
-          const items = Array.isArray(an?.items) ? an.items.map((a, idx) => ({
-            title: a.title || `Item ${idx + 1}`,
-            summary: a.summary || '',
-            sentiment_score: typeof a.sentiment === 'number' ? a.sentiment : null,
-            topics: Array.isArray(a.topics) ? a.topics : [],
-          })) : [];
-          analysisPayload = { items };
-        } catch {}
-
-        if (analysisPayload && analysisPayload.items.length > 0) {
-          await downloadAnalysisPDFViaAPI({
-            campaign: campaign || {},
-            analysis: analysisPayload,
-            apiBase: (typeof window !== 'undefined' && window.__API_BASE__) || '/api',
-            authToken: (typeof window !== 'undefined' && (localStorage.getItem('access_token') || localStorage.getItem('token'))) || undefined,
-          });
-          setActionMsg("PDF generado");
-        } else {
-          const r = await adminBuildReport(campaign || { name: "", query: "" });
-          if (r?.url) window.open(r.url, "_blank");
-          else setActionMsg("PDF generado");
-        }
-      } catch {
-        setActionMsg("Error al generar PDF");
-      }
+      setActionMsg("Error al generar PDF");
     } finally {
       setBusy(false);
     }
@@ -190,8 +152,8 @@ export default function AdminCampaignDetailPage() {
   const onRunAll = async () => {
     setBusy(true); setActionMsg("Ejecutando pipeline…");
     try {
-      await adminRunAllAndWait(id, { maxTries: 40, intervalMs: 2000 });
-      // Vuelve a cargar overview/items/analyses persistidos
+      await recoverCampaign(id);
+      await processPending(id);
       await loadBase();
       if (tab === "items") await loadItems();
       if (tab === "analyses") await loadAnalyses();

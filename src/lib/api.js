@@ -378,6 +378,27 @@ export async function buildReport(payload, filename = "reporte.pdf") {
   return true;
 }
 
+// Nuevo helper solicitado: construye reporte a partir de campaignId
+export async function buildReportFromCampaign(campaignId, filename = "reporte.pdf") {
+  const blob = await apiFetch("/reports/pdf", {
+    method: "POST",
+    body: { campaignId },
+    asBlob: true,
+  });
+
+  if (typeof window !== "undefined") {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+  return true;
+}
+
 // =====================
 // Auth endpoints
 // =====================
